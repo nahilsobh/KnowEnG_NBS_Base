@@ -328,22 +328,6 @@ def initialization(network, spreadsheet):
 
     return network_size, M, I
 
-def get_sparse_format(network):
-    '''Transform network and laplacian matrices to sparse format.
-
-    Args:
-         network: full gene-gene network
-
-    Returns:
-        network_sparse :
-        Ld :
-        Lk :
-    '''
-    network_sparse = spar.csr_matrix(network)
-    Ld, Lk = form_network_laplacian(network)
-
-    return network_sparse, Ld, Lk
-
 def parameters_setup():
     '''Setups the run parameters.
 
@@ -375,20 +359,7 @@ def display_clusters(M):
     plt.show()
     return
 
-
-def display2_clusters(M):
-    '''Displays the consensus matrix.
-
-    Args:
-         M: consenus matrix.
-    '''
-    fig = plt.figure()
-    ax = fig.add_subplot(1,1,1)
-    ax.set_aspect('equal')
-    plt.imshow(M, interpolation='nearest', cmap=plt.cm.ocean)
-    plt.colorbar()
-    
-    
+  
 def main():
     '''Performs network based clustering'''
 
@@ -399,7 +370,8 @@ def main():
     print('data loaded in {:.3f}'.format(end_timer-start_timer))
 
     network_size, connectivity_matrix, indicator_matrix = initialization(network, spreadsheet)
-    network_sparse, Ld, Lk = get_sparse_format(network)
+    network_sparse = spar.csr_matrix(network)
+    Ld, Lk = form_network_laplacian(network)
     percent_sample, number_of_samples = parameters_setup()
 
     print('number of samples {}'.format(number_of_samples))
@@ -430,7 +402,6 @@ def main():
     consensus_matrix = connectivity_matrix / np.maximum(indicator_matrix, 1)
     M = reorder_matrix(consensus_matrix)
     display_clusters(M)
-    display2_clusters(M)
 
 if __name__ == "__main__":
     main()
