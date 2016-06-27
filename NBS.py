@@ -1,7 +1,7 @@
 """
 Created on Tue Jun 21 11:48:41 2016
 
-@author: Lanier
+@author: dlanier
 @author: nahilsobh
 
 This script performs network based clustering
