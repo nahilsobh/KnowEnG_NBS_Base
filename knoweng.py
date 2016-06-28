@@ -4,6 +4,7 @@ Created on Tue Jun 28 14:39:35 2016
 
 @author: Sobh
 """
+import time
 import numpy as np
 import numpy.linalg as LA
 import scipy.sparse as spar
@@ -90,11 +91,11 @@ def rwr(restart, network_sparse, alpha=0.7, max_iteration=100, tol=1.e-4,
     for step in range(0, max_iteration):
         smooth_1 = alpha * network_sparse.dot(smooth_0) + smooth_r
         if (step == 1) | (np.mod(step, report_frequency) == 0):
-            deltav = LA.norm(smooth_1 - smooth_1, 'fro')
+            deltav = LA.norm(smooth_1 - smooth_0, 'fro')
             if deltav < tol:
                 break
         smooth_0 = smooth_1
-    return smooth_1
+    return smooth_1, step
 
 
 def quantile_norm(sample):
