@@ -29,7 +29,8 @@ def main():
     for sample in range(0, number_of_samples):
         sample_random, sample_permutation = kn.get_a_sample(spreadsheet, percent_sample,
                                                          lut, network_size)
-        sample_smooth = kn.rwr(sample_random, network_sparse, alpha=0.7)
+        sample_smooth, iterations = kn.rwr(sample_random, network_sparse, alpha=0.7)
+        print("iterations = ", iterations)
         sample_quantile_norm = kn.quantile_norm(sample_smooth)
         H, niter = kn.netnmf(sample_quantile_norm, Lk, Ld, k=3)
         connectivity_matrix = kn.update_connectivity_matrix(H, sample_permutation, connectivity_matrix)
