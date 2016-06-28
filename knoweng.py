@@ -354,30 +354,3 @@ def display_clusters(M):
     plt.show()
     return
 
-  
-def main():
-    '''Performs network based clustering'''
-
-    network, spreadsheet, lut = get_input()
-    network_sparse = spar.csr_matrix(network)
-    Ld, Lk = form_network_laplacian(network)
-    percent_sample, number_of_samples = parameters_setup()
-    network_size = network.shape[0]
-    connectivity_matrix, indicator_matrix = initialization(spreadsheet)
-
-    for sample in range(0, number_of_samples):
-        sample_random, sample_permutation = get_a_sample(spreadsheet, percent_sample,
-                                                         lut, network_size)
-        sample_smooth = rwr(sample_random, network_sparse, alpha=0.7)
-        sample_quantile_norm = quantile_norm(sample_smooth)
-        H, niter = netnmf(sample_quantile_norm, Lk, Ld, k=3)
-        connectivity_matrix = update_connectivity_matrix(H, sample_permutation, connectivity_matrix)
-        indicator_matrix = update_indicator_matrix(sample_permutation, indicator_matrix)
-
-
-    consensus_matrix = connectivity_matrix / np.maximum(indicator_matrix, 1)
-    M = reorder_matrix(consensus_matrix)
-    display_clusters(M)
-
-if __name__ == "__main__":
-    main()
