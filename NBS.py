@@ -71,6 +71,12 @@ def get_a_sample(spreadsheet, percent_sample, lut, network_size):
         index = lut[nanozeros_in_col]
         index = index[(index >= 0) & (index <= network_size)]
         sample_random[index, col_id] = 1
+    
+    """ eliminate columns of zeros """
+    positive_col_set = sum(sample_random) > 0
+    sample_random = sample_random[:, positive_col_set]
+    patients_permutation = patients_permutation[positive_col_set]
+    
     return sample_random, patients_permutation
     
 def rwr(restart, network_sparse, alpha=0.7, max_iteration=100, tol=1.e-4,
