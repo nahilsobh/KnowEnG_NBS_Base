@@ -7,7 +7,7 @@ Created on Tue Jun 21 11:48:41 2016
 This script performs network based clustering
 """
 
-import knoweng as kn
+from knpackage import toolbox as kn
 import scipy.sparse as spar
 from numpy import maximum
   
