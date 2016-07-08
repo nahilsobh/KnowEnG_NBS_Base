@@ -12,6 +12,38 @@ import scipy.io as spio
 from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
 
+def consensus_cluster_nbs(network, spreadsheet, number_of_samples=5, percent_sample=0.8):
+    """ main loop for this module computes the components for the consensus matrix
+        from the input network and spreadsheet
+    Args:
+        network: genes x genes symmetric adjacency matrix
+        spreadsheet: genes x samples matrix
+        number_of_samples: number of iterations of nbs to try
+        percent_sample: portion of spreadsheet to use in each iteration
+    
+    Returns:
+        connectivity_matrix: samples x samples count of sample relations
+        indicator_matrix: samples x samples count of sample trials
+    """
+    network_sparse = spar.csr_matrix(network)
+    Ld, Lk = form_network_laplacian(network)
+    connectivity_matrix, indicator_matrix = initialization(spreadsheet)
+
+    # ----------------------------------------------
+    # Network based clustering loop and aggregation
+    # ----------------------------------------------
+    for sample in range(0, number_of_samples):
+        sample_random, sample_permutation = spreadsheet_sample(spreadsheet, percent_sample)
+        sample_smooth, iterations = rwr(sample_random, network_sparse, alpha=0.7)
+        print("iterations = ", iterations)
+        sample_quantile_norm = quantile_norm(sample_smooth)
+        H, niter = netnmf(sample_quantile_norm, Lk, Ld, k=3)
+        connectivity_matrix = update_connectivity_matrix(H, sample_permutation, connectivity_matrix)
+        indicator_matrix = update_indicator_matrix(sample_permutation, indicator_matrix)
+        
+    return connectivity_matrix, indicator_matrix
+    
+
 def form_network_laplacian(network):
     """Forms the laplacian matrix.
 
@@ -32,16 +64,49 @@ def form_network_laplacian(network):
 
     return diagonal_laplacian, laplacian
 
+def project_sample_on_network(raw_spreadsheet, lut, network_size):
+    """ project the spreadsheet sample onto the network dirived look up table
+    Args:
+        raw_spreadsheet: genes x samples (numeric binary) matrix
+        lut: size of spreadsheet genes array of indices of gene locations in 
+            network or -1 if not present
+        network_size: the size of the output spreadsheet genes
+        
+    Returns:
+        spreadsheet: network genes x samples matrix
+        columns_removed: any columns that were all zeros after projection
+    """
+    
+    columns = raw_spreadsheet.shape[1]
+    lut = lut.T
+    spreadsheet = np.zeros((network_size, columns))
+
+    for col_id in range(0, columns):
+        nanozeros_in_col = (raw_spreadsheet[:, col_id] != 0)
+        index = lut[nanozeros_in_col]
+        index = index[(index >= 0) & (index <= network_size)]
+        spreadsheet[index, col_id] = 1
+
+    #---------------------------
+    # eliminate zero columns
+    #---------------------------
+    columns_removed = np.arange(0, columns)
+    positive_col_set = sum(spreadsheet) > 0
+    spreadsheet = spreadsheet[:, positive_col_set]
+    columns_removed = columns_removed[np.logical_not(positive_col_set)]
+    
+    return spreadsheet, columns_removed
+
 def spreadsheet_sample(spreadsheet, percent_sample):
     """Selects a sample, by precentage, from a spread sheet already projected
         on network.
 
     Args:
-        spreadsheet: genexsample spread sheet.
+        spreadsheet: (network) gene x sample spread sheet.
         percent_sample: percentage of spread sheet to select at random.
 
     Returns:
-        sample_random: A sample of the spread sheet with the specified precentage.
+        sample_random: A specified precentage sample of the spread sheet.
         patients_permutation: the list the correponds to random sample.
     """
     features_size = np.int_(np.round(spreadsheet.shape[0] * (1-percent_sample)))
