@@ -32,6 +32,34 @@ def form_network_laplacian(network):
 
     return diagonal_laplacian, laplacian
 
+def spreadsheet_sample(spreadsheet, percent_sample):
+    """Selects a sample, by precentage, from a spread sheet already projected
+        on network.
+
+    Args:
+        spreadsheet: genexsample spread sheet.
+        percent_sample: percentage of spread sheet to select at random.
+
+    Returns:
+        sample_random: A sample of the spread sheet with the specified precentage.
+        patients_permutation: the list the correponds to random sample.
+    """
+    features_size = np.int_(np.round(spreadsheet.shape[0] * (1-percent_sample)))
+    features_permutation = np.random.permutation(spreadsheet.shape[0])
+    features_permutation = features_permutation[0:features_size].T
+    
+    patients_size = np.int_(np.round(spreadsheet.shape[1] * percent_sample))
+    patients_permutation = np.random.permutation(spreadsheet.shape[1])
+    patients_permutation = patients_permutation[0:patients_size]
+    
+    sample_random = spreadsheet[:, patients_permutation]
+    sample_random[features_permutation[:, None], :] = 0
+    
+    positive_col_set = sum(sample_random) > 0
+    sample_random = sample_random[:, positive_col_set]
+    patients_permutation = patients_permutation[positive_col_set]
+
+    return sample_random, patients_permutation
 
 def get_a_sample(spreadsheet, percent_sample, lut, network_size):
     """Selects a sample, by precentage, from a given spread sheet.
@@ -40,7 +68,7 @@ def get_a_sample(spreadsheet, percent_sample, lut, network_size):
         spreadsheet: genexsample spread sheet.
         percent_sample: percentage of spread sheet to select at random.
         lut: lookup table.
-        network_size: network size?? why we need this?
+        network_size: network size
 
     Returns:
         sample_random: A sample of the spread sheet with the specified precentage.
