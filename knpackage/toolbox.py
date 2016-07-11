@@ -70,14 +70,14 @@ def is_member(a_array, b_array):
             
     return a_in_b, a_index
     
-def hp5_ensemble_dataset_to_int64_array(ensg_dataset):
+def hpf5_ensemble_dataset_to_int64_array(ensg_dataset):
     """ for hdf5 file fixed length uint8 string
     Args:
         ensg_dataset: type h5py data set such as - ensg_dataset = f['keyStrings']
         whth all same type ensembel strings (ENSG00000000000). Note that the 
         h5 file must be open and available in the namespace
     Returns:
-        int64_array: integer array of the values in the numerical part of the ensembel strings
+        int64_array: integer array of the numerical part of ensembel strings
     """
     with ensg_dataset.astype('uint8'):
         keys = ensg_dataset[:]
@@ -90,6 +90,38 @@ def hp5_ensemble_dataset_to_int64_array(ensg_dataset):
         key_number += 1
         
     return int64_array
+    
+def pandas_index_ensg_to_int64_array(row_names):
+    """ for pandas index array
+    Args:
+        row_names: a pandas dataframe index field of ensembel gene names
+        
+    Returns:
+        int64_array: 64 bit integer array equ
+    """
+    rows = row_names.size
+    int64_array = np.int64(np.zeros(rows))
+    for r in range(0, rows):
+        int64_array[r] = np.int64(int(row_names[r][4:15]))
+        
+    return int64_array
+
+def ensemble_strings_as_numbers(ens_strs):
+    """ for matlab cell array or python list
+    Args:
+        ens_strs: python list of ensembel gene identifier strings 
+    Returns:
+        ens_numbers: 64 bit integer array equivalent to the numerical part
+    """
+    ens_numbers = np.int64(np.zeros(ens_strs.count('\n')))
+    ens_str_lines = ens_strs.splitlines()
+    row = -1
+    for line_string in ens_str_lines:
+        row += 1
+        ens_numbers[row] = np.int64(float(line_string[4:14]))
+        
+    return ens_numbers
+    
 
 def form_network_laplacian(network):
     """Forms the laplacian matrix.
