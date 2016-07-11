@@ -12,7 +12,7 @@ import scipy.io as spio
 from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
 
-def consensus_cluster_nbs(network, spreadsheet, number_of_samples=5, percent_sample=0.8):
+def consensus_cluster_nbs(network, spreadsheet, number_of_samples=5, percent_sample=0.8, k=3):
     """ main loop for this module computes the components for the consensus matrix
         from the input network and spreadsheet
     Args:
@@ -37,7 +37,7 @@ def consensus_cluster_nbs(network, spreadsheet, number_of_samples=5, percent_sam
         sample_smooth, iterations = rwr(sample_random, network_sparse, alpha=0.7)
         print("iterations = ", iterations)
         sample_quantile_norm = quantile_norm(sample_smooth)
-        H, niter = netnmf(sample_quantile_norm, Lk, Ld, k=3)
+        H, niter = netnmf(sample_quantile_norm, Lk, Ld, k)
         connectivity_matrix = update_connectivity_matrix(H, sample_permutation, connectivity_matrix)
         indicator_matrix = update_indicator_matrix(sample_permutation, indicator_matrix)
         
