@@ -69,6 +69,27 @@ def is_member(a_array, b_array):
             a_index[element] = element_index[0]
             
     return a_in_b, a_index
+    
+def hp5_ensemble_dataset_to_int64_array(ensg_dataset):
+    """ for hdf5 file fixed length uint8 string
+    Args:
+        ensg_dataset: type h5py data set such as - ensg_dataset = f['keyStrings']
+        whth all same type ensembel strings (ENSG00000000000). Note that the 
+        h5 file must be open and available in the namespace
+    Returns:
+        int64_array: integer array of the values in the numerical part of the ensembel strings
+    """
+    with ensg_dataset.astype('uint8'):
+        keys = ensg_dataset[:]
+    int64_array = np.int64(np.zeros(keys.shape[1]))
+    key_strings = np.string_(np.reshape(keys, (1, keys.size)))
+    key_strings = key_strings.splitlines()
+    key_number = 0
+    for key in key_strings:
+        int64_array[key_number] = np.int64(float(key[4:15]))
+        key_number += 1
+        
+    return int64_array
 
 def form_network_laplacian(network):
     """Forms the laplacian matrix.
