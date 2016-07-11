@@ -43,6 +43,32 @@ def consensus_cluster_nbs(network, spreadsheet, number_of_samples=5, percent_sam
         
     return connectivity_matrix, indicator_matrix
     
+def is_member(a_array, b_array):
+    """ Find existance and locations of array "a" in another array "b", when any element of "a"
+        occurs more than once in "b" only the first location is retained in the a_index array.
+    Args:
+        a_array : an array of real numbers.
+        b_array : an array of real numbers.
+    Returns:
+        a_in_b  (logical): true when element of a is found in b.
+        a_index     (int): location where each element of a is found in b, or -1 if not found.
+    Raises:
+        No exceptions are raised internally.
+    """
+    size_of_a = a_array.size
+    size_of_b = b_array.size
+    
+    b_index = np.arange(0, size_of_b)
+    a_in_b = np.zeros(size_of_a,dtype=bool)
+    a_index = np.int_(np.zeros(size_of_a) - 1)
+    
+    for element in range(0, size_of_a):
+        element_index = b_index[a_array[element] == b_array]
+        if element_index.size >= 1:
+            a_in_b[element] = True
+            a_index[element] = element_index[0]
+            
+    return a_in_b, a_index
 
 def form_network_laplacian(network):
     """Forms the laplacian matrix.
