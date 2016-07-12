@@ -43,6 +43,73 @@ def consensus_cluster_nbs(network, spreadsheet, number_of_samples=5, percent_sam
         
     return connectivity_matrix, indicator_matrix
     
+def data_frame_to_3col_numeric(df_input):
+    """ convert pandas data frame (gene, gene, wt., type) to 3 column float
+    Args:
+        df_input: pandas (4 column) data frame  with ensembel names in col 0, 1
+    Returns:
+        numeric_3col_mat: 3 x number of valid ENSG... gene name pairs matrix
+    """
+    V = df_input.values
+    good_row_list = np.int32(np.zeros((V.shape[0])))
+    good_string = 'ENS'
+    n = 0
+    for row in range(0, V.shape[0]):
+        a = V[row, 0]
+        b = V[row, 1]
+        if not((a[0:3] != good_string) | (b[0:3] != good_string)):
+            good_row_list[n] = row
+            n += 1
+            
+    good_row_list = good_row_list[0:n-1]
+    V = V[good_row_list, :]
+    
+    numeric_3col_mat = np.zeros((V.shape[0], 3))
+    for row in range(0, V.shape[0]):
+        c0 = V[row, 0]
+        numeric_3col_mat[row, 0] = float(c0[4:15])
+        c1 = V[row, 1]
+        numeric_3col_mat[row, 1] = float(c1[4:15])
+        numeric_3col_mat[row, 2] = V[row, 2]
+    
+    return numeric_3col_mat
+    
+# trim node_links_data and get the unique node names
+def nodes_to_matrix(node_links_all, threshold, data_column=2):
+    """ Construct an adjacency matrix and it's list of row and column labels from
+        a spreadsheet of nodes and links [node, node, w1, w2, w3,...] x times
+    Args:
+        node_links_all, threshold, data_column
+    Returns:
+        adjacency_matrix, node_names
+    Raises:
+        No exceptions are raised internally.
+    """
+    node_links = node_links_all.copy()
+    node_links[:, 0] = node_links[:, 0] - 1
+    node_links[:, 1] = node_links[:, 1] - 1
+    rowix = np.flipud(np.argsort(node_links[:, data_column]))
+    node_links = node_links[rowix, :]
+    node_links = node_links[1:np.int_(np.ceil(node_links.shape[0] * threshold) + 1), :]
+    node_names = np.unique(np.concatenate(np.array([node_links[:, 0], node_links[:, 1]])))
+    matrix_length = node_names.size
+    node_index = np.arange(0, matrix_length)
+    rows_length = node_links.shape[0]
+    adjacency_triples = np.zeros((rows_length * 2, 3))
+    for m in range(0, rows_length):
+        mm = m + rows_length
+        adjacency_triples[m, 0] = node_index[node_names == node_links[m, 0]]
+        adjacency_triples[mm, 1] = adjacency_triples[m, 0]
+        adjacency_triples[m, 1] = node_index[node_names == node_links[m, 1]]
+        adjacency_triples[mm, 0] = adjacency_triples[m, 1]
+        adjacency_triples[m, 2] = node_links[m, data_column]
+        adjacency_triples[mm, 2] = adjacency_triples[m, 2]
+    adjacency_matrix = spar.csr_matrix((
+        adjacency_triples[:, 2], (adjacency_triples[:, 0], adjacency_triples[:, 1])),
+        shape=(matrix_length, matrix_length) )
+    
+    return adjacency_matrix, node_names
+    
 def is_member(a_array, b_array):
     """ Find existance and locations of array "a" in another array "b", when any element of "a"
         occurs more than once in "b" only the first location is retained in the a_index array.
