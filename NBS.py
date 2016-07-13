@@ -8,44 +8,34 @@ This script performs network based clustering
 """
 
 from knpackage import toolbox as kn
-import scipy.sparse as spar
-from numpy import maximum
+import numpy as np
+import h5py
+import argparse
+import sys
   
-def main():
+def main(argv=None):
     '''Performs network based clustering'''
-    # ---------------------------------
-    # Input, Clean, and set parameters
-    # ---------------------------------
-    network, spreadsheet, lut = kn.get_input()
-    network_sparse = spar.csr_matrix(network)
-    Ld, Lk = kn.form_network_laplacian(network)
-    percent_sample, number_of_samples = kn.parameters_setup()
-    network_size = network.shape[0]
-    connectivity_matrix, indicator_matrix = kn.initialization(spreadsheet)
-
-    # ----------------------------------------------
-    # Network based clustering loop and aggregation
-    # ----------------------------------------------
-    for sample in range(0, number_of_samples):
-        sample_random, sample_permutation = kn.get_a_sample(spreadsheet, percent_sample,
-                                                         lut, network_size)
-        sample_smooth, iterations = kn.rwr(sample_random, network_sparse, alpha=0.7)
-        print("iterations = ", iterations)
-        sample_quantile_norm = kn.quantile_norm(sample_smooth)
-        H, niter = kn.netnmf(sample_quantile_norm, Lk, Ld, k=3)
-        connectivity_matrix = kn.update_connectivity_matrix(H, sample_permutation, connectivity_matrix)
-        indicator_matrix = kn.update_indicator_matrix(sample_permutation, indicator_matrix)
-        
-    # --------------------------
-    # From the consensus matrix
-    # --------------------------
-    consensus_matrix = connectivity_matrix / maximum(indicator_matrix, 1)
-    M = kn.reorder_matrix(consensus_matrix)
+    if argv is None:
+        argv = sys.argv
+    else:
+        argv = sys.argv.extend(argv)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-keg_data','--keg_run_data',type=str,
+                        help='-keg_data keg_run_data.hdf5 filename')
+    parser.add_argument('-target_filename','--target_file',type=str,
+                        help='-target_filename hdf5 filename (will overwrite)')
+    args = parser.parse_args()
     
-    # --------------------
-    # Display the results
-    # --------------------
-    kn.display_clusters(M)
+    network, spreadsheet, Ld, Lk, nbs_par_set = kn.get_keg_input(args.keg_run_data) 
+    
+    M, I = kn.consensus_cluster_nbs(network, spreadsheet, Ld, Lk, nbs_par_set)
+                                    
+    write_file = h5py.File(args.target_file, 'w')
+    M_dataset = write_file.create_dataset('M',(M.shape),dtype=np.float64)
+    M_dataset[...] = M
+    I_dataset = write_file.create_dataset('I',(I.shape),dtype=np.float64)
+    I_dataset[...] = I
+    write_file.close()
 
 if __name__ == "__main__":
     main()
