@@ -189,7 +189,6 @@ def ensemble_strings_as_numbers(ens_strs):
         
     return ens_numbers
     
-
 def form_network_laplacian(network):
     """Forms the laplacian matrix.
 
@@ -200,14 +199,13 @@ def form_network_laplacian(network):
         diagonal_laplacian: the diagonal of the laplacian matrix.
         laplacian: the laplacian matrix.
     """
-    laplacian = network - np.diag(np.diag(network))
+    laplacian = spar.lil_matrix(network.copy())
+    laplacian.setdiag(0)
     laplacian[laplacian != 0] = 1
-    rowsum = sum(laplacian)
-    diagonal_laplacian = np.diag(rowsum)
-
-    laplacian = spar.csr_matrix(laplacian)
+    diagonal_laplacian = np.array(laplacian.sum(axis=0)) * np.eye(laplacian.shape[0])
+    laplacian = laplacian.tocsr()
     diagonal_laplacian = spar.csr_matrix(diagonal_laplacian)
-
+    
     return diagonal_laplacian, laplacian
 
 def project_sample_on_network(raw_spreadsheet, lut, network_size):
