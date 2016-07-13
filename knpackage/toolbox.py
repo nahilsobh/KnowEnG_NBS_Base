@@ -12,21 +12,29 @@ import scipy.io as spio
 from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
 
-def consensus_cluster_nbs(network, spreadsheet, number_of_samples=5, percent_sample=0.8, k=3):
+def consensus_cluster_nbs(network, spreadsheet, Ld, Lk, nbs_par_set):
     """ main loop for this module computes the components for the consensus matrix
         from the input network and spreadsheet
     Args:
         network: genes x genes symmetric adjacency matrix
         spreadsheet: genes x samples matrix
+        Ld, Lk: laplacian matrix components i.e. L = Ld - Lk
+        nbs_par_set = {"number_of_bootstraps":1, "percent_sample":0.8, "k":3,
+                    "rwr_alpha":0.7}
         number_of_samples: number of iterations of nbs to try
         percent_sample: portion of spreadsheet to use in each iteration
+        k: inner dimension of matrx factorization
+        alpha: radom walk with restart proportions
     
     Returns:
         connectivity_matrix: samples x samples count of sample relations
         indicator_matrix: samples x samples count of sample trials
     """
+    number_of_samples = nbs_par_set["number_of_bootstraps"]
+    percent_sample = nbs_par_set["percent_sample"]
+    k = nbs_par_set["k"]
+    alpha = nbs_par_set["rwr_alpha"]
     network_sparse = spar.csr_matrix(network)
-    Ld, Lk = form_network_laplacian(network)
     connectivity_matrix, indicator_matrix = initialization(spreadsheet)
 
     # ----------------------------------------------
@@ -34,7 +42,7 @@ def consensus_cluster_nbs(network, spreadsheet, number_of_samples=5, percent_sam
     # ----------------------------------------------
     for sample in range(0, number_of_samples):
         sample_random, sample_permutation = spreadsheet_sample(spreadsheet, percent_sample)
-        sample_smooth, iterations = rwr(sample_random, network_sparse, alpha=0.7)
+        sample_smooth, iterations = rwr(sample_random, network_sparse, alpha)
         print("iterations = ", iterations)
         sample_quantile_norm = quantile_norm(sample_smooth)
         H, niter = netnmf(sample_quantile_norm, Lk, Ld, k)
@@ -527,6 +535,11 @@ def get_input():
     lut = np.int64(lut) - 1
 
     return network, spreadsheet, lut
+    
+def nbs_par_set_dict():
+    nbs_par_set = {"number_of_bootstraps":1, "percent_sample":0.8, "k":3,
+                    "rwr_alpha":0.7}
+    return nbs_par_set
 
 
 def echo_input(network, spreadsheet, lut):
