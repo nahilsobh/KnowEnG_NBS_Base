@@ -11,8 +11,10 @@ import scipy.sparse as spar
 import scipy.io as spio
 from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
+import h5py
+import argparse
 
-def consensus_cluster_nbs(network, spreadsheet, Ld, Lk, nbs_par_set):
+def consensus_cluster_nbs(network_sparse, spreadsheet, Ld, Lk, nbs_par_set):
     """ main loop for this module computes the components for the consensus matrix
         from the input network and spreadsheet
     Args:
@@ -34,7 +36,6 @@ def consensus_cluster_nbs(network, spreadsheet, Ld, Lk, nbs_par_set):
     percent_sample = nbs_par_set["percent_sample"]
     k = nbs_par_set["k"]
     alpha = nbs_par_set["rwr_alpha"]
-    network_sparse = spar.csr_matrix(network)
     connectivity_matrix, indicator_matrix = initialization(spreadsheet)
 
     # ----------------------------------------------
@@ -536,6 +537,36 @@ def get_input():
 
     return network, spreadsheet, lut
     
+def get_keg_input(args):
+    
+    print('get_keg_input is called')
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-keg_data', '--keg_run_data', type=str)
+    parser.add_argument('-target_filename', '--target_file', type=str)
+    args = parser.parse_args()
+    
+    f_name = args.keg_run_data
+    print('received filename: {}'.format(f_name))
+    network = 1
+    spreadsheet = 1
+    try:
+        data_file = h5py.File(f_name, 'r')
+        #network = np.array(data_file["network"])
+        #spreadsheet = np.array(data_file["spreadsheet"])
+    except:
+        print('Failing at except: line 555')
+        data_file.close()
+        
+    Ld = []
+    Lk = []
+    nbs_par_set = nbs_par_set_dict()
+    nbs_par_set["target_filename"] = args.target_file
+    data_file.close()
+    
+    print('get_keg_input Returns')
+    
+    return network, spreadsheet, Ld, Lk, nbs_par_set
+    
 def nbs_par_set_dict():
     nbs_par_set = {"number_of_bootstraps":1, "percent_sample":0.8, "k":3,
                     "rwr_alpha":0.7}
@@ -613,3 +644,17 @@ def display_clusters(M):
     plt.show()
     return
 
+def write_connectivity_indicator_matrices(M,I,target_file_name):
+    status = 0
+    try:
+        write_file = h5py.File(target_file_name, 'w')
+        M_dataset = write_file.create_dataset('M', (M.shape), dtype=np.float64)
+        M_dataset[...] = M
+        I_dataset = write_file.create_dataset('I', (I.shape), dtype=np.float64)
+        I_dataset[...] = I
+        write_file.close()
+    except:
+        status = -1
+    
+    return status
+    
