@@ -3,16 +3,147 @@
 Created on Tue Jun 28 14:39:35 2016
 
 @author: Sobh
+@author: dlanier
+
 """
 import time
 import numpy as np
 import numpy.linalg as LA
+import pandas as pd
 import scipy.sparse as spar
 import scipy.io as spio
 from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
 import h5py
 import argparse
+
+    
+def nbs_par_set_dict():
+    """ set of default parameter names for nbs -- filenames mut be replaced
+    
+    """
+    nbs_par_set = {"number_of_bootstraps":5, "percent_sample":0.8, "k":3,
+                    "rwr_alpha":0.7, 'network_file':'network.edge',
+                    'spreadsheet_file':'spreadsheet.df',
+                    'verbose':1, 'display_clusters':1}
+    return nbs_par_set
+    
+def get_input(args):
+    """ read system input arguments and return data from files
+    
+    åArgs:
+        args: aka sys.argv
+    
+    Returns:
+        adj_mat: a symmetric adjacency matrix from the network file input
+        spreadsheet: genes x samples input data matrix shaped to adj_mat
+        lookup: gene names to location in adj_mat
+        rev_lookup: location in adj_mat to gene_names
+        par_set_dict: run parameters including the input data filenames
+    """
+    par_set_dict = get_arg_filenames(args)
+    N_df, S_df = read_input_files(par_set_dict)
+    adj_mat, spreadsheet = df_to_nw_ss(N_df, S_df)
+    adj_mat = normal_matrix(adj_mat)
+    if int(par_set_dict['verbose']) != 0:
+        echo_input(adj_mat, spreadsheet, par_set_dict)
+    
+    return adj_mat, spreadsheet, par_set_dict, S_df.columns
+
+def get_arg_filenames(args):
+    """ exctract parameters dictionary from command line input args and 
+        get the input filenames from that dictionary
+        
+    Args:
+        args: aka sys.argv input to main function
+        
+    Returns:
+        network_file: file name for network .edge
+        spreadsheet_file: file name of spreadsheet .df
+        par_set: dictionary parameter set
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-parameters', '--par_data', type=str)
+    args = parser.parse_args()    
+    f_name = args.par_data
+    par_set_df = pd.read_csv(f_name, sep='\t', header=None, index_col=0)
+    par_set_dict = dict(par_set_df.to_dict()[1])
+    
+    return par_set_dict
+    
+def read_input_files(par_set_dict):
+    """ read the input parameters filenames into pandas dataframes
+    
+    Args:
+        network_data_file: network (.edge 4 col) file name
+        spreadsheet_data_file: spreadsheet (.df) file name
+
+    Returns:
+        N_df: pandas dataframe of network w/o row or col labels
+        S_df: pandas dataframe of spreadsheet
+    """
+    network_file = par_set_dict['network_data']
+    spreadsheet_file = par_set_dict['spreadsheet_data']
+    N_df = pd.read_table(network_file, sep='\t')
+    S_df = pd.read_table(spreadsheet_file, sep='\t', header=0, index_col=0)
+    
+    return N_df, S_df
+
+def df_to_nw_ss(N_df, S_df):
+    """ convert pandas dataframe representations into data set
+    
+    Args:
+        N_df: pandas dataframe of network w/o row or col labels
+        S_df: pandas dataframe of spreadsheet
+
+    Returns:
+        adj_mat: adjacency matrix (sparse, symmetric, genes x genes)
+        spreadsheet: spreadsheet matrix (genes x samples)
+        lookup: dictionary of ensembl names to locations in network
+        rev_lookup: dictionary locations in network to ensembl names
+    """
+    from_nodes = N_df.values[:, 0]
+    to_nodes = N_df.values[:, 1]
+    all_nodes = list(set(from_nodes) | set(to_nodes))
+    S_df = S_df.loc[all_nodes].fillna(0)
+    lookup = dict(zip(all_nodes, range(len(all_nodes))))
+    # rev_lookup = dict(zip(range(len(all_nodes)), all_nodes))
+    row_idx = [lookup[i] for i in from_nodes]
+    col_idx = [lookup[i] for i in to_nodes]
+    N_vals = np.float64(N_df.values[:, 2])
+
+    matrix_length = len(all_nodes)
+
+    adj_mat = spar.csr_matrix((N_vals, (row_idx, col_idx)),
+                              shape=(matrix_length, matrix_length))
+    adj_mat = adj_mat + adj_mat.transpose()
+    spreadsheet = S_df.as_matrix()
+    
+    return adj_mat, spreadsheet
+
+def normal_matrix(adj_mat):
+    """ normalize square matrix for random walk id est.
+        normalize s.t. the norm of the whole matrix is near one
+    
+    Args:
+        adj_mat: usually an adjacency matrix
+        
+    Returns:
+        adj_mat: renomralized input s.t. norm(adj_mat) is about 1
+    """
+    d = sum(adj_mat)
+    if spar.issparse(d):
+        d = d.todense()
+    n_diag = d.size
+    d = np.sqrt(1 / d)
+    D = np.zeros((n_diag, n_diag))
+    for rc in range(0, n_diag):
+        D[rc, rc] = d[0, rc]
+    D = spar.csr_matrix(D)
+    adj_mat = D.dot(adj_mat)
+    adj_mat = adj_mat.dot(D.T)
+    
+    return adj_mat
 
 def consensus_cluster_nbs(network_sparse, spreadsheet, Ld, Lk, nbs_par_set):
     """ main loop for this module computes the components for the consensus matrix
@@ -23,7 +154,7 @@ def consensus_cluster_nbs(network_sparse, spreadsheet, Ld, Lk, nbs_par_set):
         Ld, Lk: laplacian matrix components i.e. L = Ld - Lk
         nbs_par_set = {"number_of_bootstraps":1, "percent_sample":0.8, "k":3,
                     "rwr_alpha":0.7}
-        number_of_samples: number of iterations of nbs to try
+        number_of_bootstraps: number of iterations of nbs to try
         percent_sample: portion of spreadsheet to use in each iteration
         k: inner dimension of matrx factorization
         alpha: radom walk with restart proportions
@@ -32,19 +163,19 @@ def consensus_cluster_nbs(network_sparse, spreadsheet, Ld, Lk, nbs_par_set):
         connectivity_matrix: samples x samples count of sample relations
         indicator_matrix: samples x samples count of sample trials
     """
-    number_of_samples = nbs_par_set["number_of_bootstraps"]
-    percent_sample = nbs_par_set["percent_sample"]
-    k = nbs_par_set["k"]
-    alpha = nbs_par_set["rwr_alpha"]
+    number_of_bootstraps = np.int_(nbs_par_set["number_of_bootstraps"])
+    percent_sample = np.float64(nbs_par_set["percent_sample"])
+    k = np.int_(nbs_par_set["k"])
+    alpha = np.float64(nbs_par_set["rwr_alpha"])
     connectivity_matrix, indicator_matrix = initialization(spreadsheet)
 
     # ----------------------------------------------
     # Network based clustering loop and aggregation
     # ----------------------------------------------
-    for sample in range(0, number_of_samples):
+    for sample in range(0, number_of_bootstraps):
         sample_random, sample_permutation = spreadsheet_sample(spreadsheet, percent_sample)
         sample_smooth, iterations = rwr(sample_random, network_sparse, alpha)
-        print("iterations = ", iterations)
+        print("{} of {}: iterations = {}".format(sample + 1, number_of_bootstraps, iterations))
         sample_quantile_norm = quantile_norm(sample_smooth)
         H, niter = netnmf(sample_quantile_norm, Lk, Ld, k)
         connectivity_matrix = update_connectivity_matrix(H, sample_permutation, connectivity_matrix)
@@ -52,154 +183,64 @@ def consensus_cluster_nbs(network_sparse, spreadsheet, Ld, Lk, nbs_par_set):
         
     return connectivity_matrix, indicator_matrix
     
-def data_frame_to_3col_numeric(df_input):
-    """ convert pandas data frame (gene, gene, wt., type) to 3 column float
+def form_and_save_h_clusters(adj_mat, spreadsheet, Ld, Lk, nbs_par_set):
+    """ main loop for this module computes the components for the consensus matrix
+        from the input network and spreadsheet
     Args:
-        df_input: pandas (4 column) data frame  with ensembel names in col 0, 1
+        network: genes x genes symmetric adjacency matrix
+        spreadsheet: genes x samples matrix
+        Ld, Lk: laplacian matrix components i.e. L = Ld - Lk
+        nbs_par_set = {"number_of_bootstraps":1, "percent_sample":0.8, "k":3,
+                    "rwr_alpha":0.7}
+        number_of_bootstraps: number of iterations of nbs to try
+        percent_sample: portion of spreadsheet to use in each iteration
+        k: inner dimension of matrx factorization
+        alpha: radom walk with restart proportions
+    
     Returns:
-        numeric_3col_mat: 3 x number of valid ENSG... gene name pairs matrix
+        connectivity_matrix: samples x samples count of sample relations
+        indicator_matrix: samples x samples count of sample trials
     """
-    V = df_input.values
-    good_row_list = np.int32(np.zeros((V.shape[0])))
-    good_string = 'ENS'
-    n = 0
-    for row in range(0, V.shape[0]):
-        a = V[row, 0]
-        b = V[row, 1]
-        if not((a[0:3] != good_string) | (b[0:3] != good_string)):
-            good_row_list[n] = row
-            n += 1
-            
-    good_row_list = good_row_list[0:n-1]
-    V = V[good_row_list, :]
+    temp_dir = nbs_par_set["temp_dir"]
+    number_of_bootstraps = np.int_(nbs_par_set["number_of_bootstraps"])
+    k = np.int_(nbs_par_set["k"])
+    alpha = np.float64(nbs_par_set["rwr_alpha"])
     
-    numeric_3col_mat = np.zeros((V.shape[0], 3))
-    for row in range(0, V.shape[0]):
-        c0 = V[row, 0]
-        numeric_3col_mat[row, 0] = float(c0[4:15])
-        c1 = V[row, 1]
-        numeric_3col_mat[row, 1] = float(c1[4:15])
-        numeric_3col_mat[row, 2] = V[row, 2]
-    
-    return numeric_3col_mat
-    
-# trim node_links_data and get the unique node names
-def nodes_to_matrix(node_links_all, threshold, data_column=2):
-    """ Construct an adjacency matrix and it's list of row and column labels from
-        a spreadsheet of nodes and links [node, node, w1, w2, w3,...] x times
-    Args:
-        node_links_all, threshold, data_column
-    Returns:
-        adjacency_matrix, node_names
-    Raises:
-        No exceptions are raised internally.
-    """
-    node_links = node_links_all.copy()
-    node_links[:, 0] = node_links[:, 0] - 1
-    node_links[:, 1] = node_links[:, 1] - 1
-    rowix = np.flipud(np.argsort(node_links[:, data_column]))
-    node_links = node_links[rowix, :]
-    node_links = node_links[1:np.int_(np.ceil(node_links.shape[0] * threshold) + 1), :]
-    node_names = np.unique(np.concatenate(np.array([node_links[:, 0], node_links[:, 1]])))
-    matrix_length = node_names.size
-    node_index = np.arange(0, matrix_length)
-    rows_length = node_links.shape[0]
-    adjacency_triples = np.zeros((rows_length * 2, 3))
-    for m in range(0, rows_length):
-        mm = m + rows_length
-        adjacency_triples[m, 0] = node_index[node_names == node_links[m, 0]]
-        adjacency_triples[mm, 1] = adjacency_triples[m, 0]
-        adjacency_triples[m, 1] = node_index[node_names == node_links[m, 1]]
-        adjacency_triples[mm, 0] = adjacency_triples[m, 1]
-        adjacency_triples[m, 2] = node_links[m, data_column]
-        adjacency_triples[mm, 2] = adjacency_triples[m, 2]
-    adjacency_matrix = spar.csr_matrix((
-        adjacency_triples[:, 2], (adjacency_triples[:, 0], adjacency_triples[:, 1])),
-        shape=(matrix_length, matrix_length) )
-    
-    return adjacency_matrix, node_names
-    
-def is_member(a_array, b_array):
-    """ Find existance and locations of array "a" in another array "b", when any element of "a"
-        occurs more than once in "b" only the first location is retained in the a_index array.
-    Args:
-        a_array : an array of real numbers.
-        b_array : an array of real numbers.
-    Returns:
-        a_in_b  (logical): true when element of a is found in b.
-        a_index     (int): location where each element of a is found in b, or -1 if not found.
-    Raises:
-        No exceptions are raised internally.
-    """
-    size_of_a = a_array.size
-    size_of_b = b_array.size
-    
-    b_index = np.arange(0, size_of_b)
-    a_in_b = np.zeros(size_of_a,dtype=bool)
-    a_index = np.int_(np.zeros(size_of_a) - 1)
-    
-    for element in range(0, size_of_a):
-        element_index = b_index[a_array[element] == b_array]
-        if element_index.size >= 1:
-            a_in_b[element] = True
-            a_index[element] = element_index[0]
-            
-    return a_in_b, a_index
-    
-def hpf5_ensemble_dataset_to_int64_array(ensg_dataset):
-    """ for hdf5 file fixed length uint8 string
-    Args:
-        ensg_dataset: type h5py data set such as - ensg_dataset = f['keyStrings']
-        whth all same type ensembel strings (ENSG00000000000). Note that the 
-        h5 file must be open and available in the namespace
-    Returns:
-        int64_array: integer array of the numerical part of ensembel strings
-    """
-    with ensg_dataset.astype('uint8'):
-        keys = ensg_dataset[:]
-    int64_array = np.int64(np.zeros(keys.shape[1]))
-    key_strings = np.string_(np.reshape(keys, (1, keys.size)))
-    key_strings = key_strings.splitlines()
-    key_number = 0
-    for key in key_strings:
-        int64_array[key_number] = np.int64(float(key[4:15]))
-        key_number += 1
+    # ----------------------------------------------
+    # Network based clustering loop and aggregation
+    # ----------------------------------------------
+    for sample in range(0, number_of_bootstraps):
+        sample_random, sample_permutation = spreadsheet_sample(spreadsheet, 
+                                    np.float64(nbs_par_set["percent_sample"]))
+        sample_smooth, iterations = rwr(sample_random, adj_mat, alpha)
+        if int(nbs_par_set['verbose']) != 0:
+            print("{} of {}: iterations = {}".format(sample + 1, 
+                  number_of_bootstraps, iterations))
+        sample_quantile_norm = quantile_norm(sample_smooth)
+        H, niter = netnmf(sample_quantile_norm, Lk, Ld, k)
+        hname = temp_dir + '/temp_h' + str(sample)
+        H.dump(hname)
+        pname = temp_dir + '/temp_p' + str(sample)
+        sample_permutation.dump(pname)
         
-    return int64_array
+    return
     
-def pandas_index_ensg_to_int64_array(row_names):
-    """ for pandas index array
-    Args:
-        row_names: a pandas dataframe index field of ensembel gene names
+def retrieve_h_clusters_and_form_conensus_matrix(nbs_par_set, connectivity_matrix, indicator_matrix):
+    temp_dir = nbs_par_set["temp_dir"]
+    number_of_bootstraps = np.int_(nbs_par_set["number_of_bootstraps"])
+    for sample in range(0, number_of_bootstraps):
+        hname = temp_dir + '/temp_h' + str(sample)
+        H = np.load(hname)
+        pname = temp_dir + '/temp_p' + str(sample)
+        sample_permutation = np.load(pname)
+        connectivity_matrix = update_connectivity_matrix(H, sample_permutation, connectivity_matrix)
+        indicator_matrix = update_indicator_matrix(sample_permutation, indicator_matrix)
         
-    Returns:
-        int64_array: 64 bit integer array equ
-    """
-    rows = row_names.size
-    int64_array = np.int64(np.zeros(rows))
-    for r in range(0, rows):
-        int64_array[r] = np.int64(int(row_names[r][4:15]))
-        
-    return int64_array
-
-def ensemble_strings_as_numbers(ens_strs):
-    """ for matlab cell array or python list
-    Args:
-        ens_strs: python list of ensembel gene identifier strings 
-    Returns:
-        ens_numbers: 64 bit integer array equivalent to the numerical part
-    """
-    ens_numbers = np.int64(np.zeros(ens_strs.count('\n')))
-    ens_str_lines = ens_strs.splitlines()
-    row = -1
-    for line_string in ens_str_lines:
-        row += 1
-        ens_numbers[row] = np.int64(float(line_string[4:14]))
-        
-    return ens_numbers
+    consensus_matrix = connectivity_matrix / np.maximum(indicator_matrix, 1)
     
+    return consensus_matrix
 def form_network_laplacian(network):
-    """Forms the laplacian matrix.
+    """ Forms the laplacian matrix.
 
     Args:
         network: adjancy matrix.
@@ -217,38 +258,6 @@ def form_network_laplacian(network):
     
     return diagonal_laplacian, laplacian
 
-def project_sample_on_network(raw_spreadsheet, lut, network_size):
-    """ project the spreadsheet sample onto the network dirived look up table
-    Args:
-        raw_spreadsheet: genes x samples (numeric binary) matrix
-        lut: size of spreadsheet genes array of indices of gene locations in 
-            network or -1 if not present
-        network_size: the size of the output spreadsheet genes
-        
-    Returns:
-        spreadsheet: network genes x samples matrix
-        columns_removed: any columns that were all zeros after projection
-    """
-    
-    columns = raw_spreadsheet.shape[1]
-    lut = lut.T
-    spreadsheet = np.zeros((network_size, columns))
-
-    for col_id in range(0, columns):
-        nanozeros_in_col = (raw_spreadsheet[:, col_id] != 0)
-        index = lut[nanozeros_in_col]
-        index = index[(index >= 0) & (index <= network_size)]
-        spreadsheet[index, col_id] = 1
-
-    #---------------------------
-    # eliminate zero columns
-    #---------------------------
-    columns_removed = np.arange(0, columns)
-    positive_col_set = sum(spreadsheet) > 0
-    spreadsheet = spreadsheet[:, positive_col_set]
-    columns_removed = columns_removed[np.logical_not(positive_col_set)]
-    
-    return spreadsheet, columns_removed
 
 def spreadsheet_sample(spreadsheet, percent_sample):
     """Selects a sample, by precentage, from a spread sheet already projected
@@ -262,6 +271,7 @@ def spreadsheet_sample(spreadsheet, percent_sample):
         sample_random: A specified precentage sample of the spread sheet.
         patients_permutation: the list the correponds to random sample.
     """
+    # spreadsheet = np.float64(spreadsheet_in.copy()) # made no difference
     features_size = np.int_(np.round(spreadsheet.shape[0] * (1-percent_sample)))
     features_permutation = np.random.permutation(spreadsheet.shape[0])
     features_permutation = features_permutation[0:features_size].T
@@ -279,51 +289,6 @@ def spreadsheet_sample(spreadsheet, percent_sample):
 
     return sample_random, patients_permutation
 
-def get_a_sample(spreadsheet, percent_sample, lut, network_size):
-    """Selects a sample, by precentage, from a given spread sheet.
-
-    Args:
-        spreadsheet: genexsample spread sheet.
-        percent_sample: percentage of spread sheet to select at random.
-        lut: lookup table.
-        network_size: network size
-
-    Returns:
-        sample_random: A sample of the spread sheet with the specified precentage.
-        patients_permutation: the list the correponds to random sample.
-    """
-    features_size = np.int_(np.round(spreadsheet.shape[0] * percent_sample))
-    features_permutation = np.random.permutation(spreadsheet.shape[0])
-    features_permutation = features_permutation[0:features_size]
-
-    patients_size = np.int_(np.round(spreadsheet.shape[1] * percent_sample))
-    patients_permutation = np.random.permutation(spreadsheet.shape[1])
-    patients_permutation = patients_permutation[0:patients_size]
-
-    sample = spreadsheet[features_permutation.T[:, None], patients_permutation]
-
-    columns = patients_permutation.size
-
-    lut = lut.T
-    lut = lut[features_permutation]
-
-    sample_random = np.zeros((network_size, columns))
-
-    for col_id in range(0, columns):
-        nanozeros_in_col = (sample[:, col_id] != 0)
-        index = lut[nanozeros_in_col]
-        index = index[(index >= 0) & (index <= network_size)]
-        sample_random[index, col_id] = 1
-
-    #---------------------------
-    # eliminate zero columns
-    #---------------------------
-    positive_col_set = sum(sample_random) > 0
-    sample_random = sample_random[:, positive_col_set]
-    patients_permutation = patients_permutation[positive_col_set]
-
-    return sample_random, patients_permutation
-    
 def rwr(restart, network_sparse, alpha=0.7, max_iteration=100, tol=1.e-4,
         report_frequency=5):
     """Performs a random walk with restarts.
@@ -350,7 +315,6 @@ def rwr(restart, network_sparse, alpha=0.7, max_iteration=100, tol=1.e-4,
                 break
         smooth_0 = smooth_1
     return smooth_1, step
-
 
 def quantile_norm(sample):
     """Normalizes an array using quantile normalization (ranking)
@@ -515,65 +479,9 @@ def reorder_matrix(consensus_matrix, k=3):
     labels = cluster_handle.fit_predict(consensus_matrix)
     sorted_labels = np.argsort(labels)
     M = M[sorted_labels[:, None], sorted_labels]
-    return M
+    return M, labels
 
-
-def get_input():
-    '''Gets User's spread sheet and network data
-
-    Args:
-        none for now
-
-    Returns:
-         network: full gene-gene network
-         spreadsheet: user's data
-         lut: generated in matlab
-    '''
-    S = spio.loadmat('testSet.mat')
-    network = S["st90norm"]
-    spreadsheet = S["sampleMatrix"].T # gene x patient
-    lut = S["ucecST90Qlut"]
-    lut = np.int64(lut) - 1
-
-    return network, spreadsheet, lut
-    
-def get_keg_input(args):
-    
-    print('get_keg_input is called')
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-keg_data', '--keg_run_data', type=str)
-    parser.add_argument('-target_filename', '--target_file', type=str)
-    args = parser.parse_args()
-    
-    f_name = args.keg_run_data
-    print('received filename: {}'.format(f_name))
-    network = 1
-    spreadsheet = 1
-    try:
-        data_file = h5py.File(f_name, 'r')
-        #network = np.array(data_file["network"])
-        #spreadsheet = np.array(data_file["spreadsheet"])
-    except:
-        print('Failing at except: line 555')
-        data_file.close()
-        
-    Ld = []
-    Lk = []
-    nbs_par_set = nbs_par_set_dict()
-    nbs_par_set["target_filename"] = args.target_file
-    data_file.close()
-    
-    print('get_keg_input Returns')
-    
-    return network, spreadsheet, Ld, Lk, nbs_par_set
-    
-def nbs_par_set_dict():
-    nbs_par_set = {"number_of_bootstraps":1, "percent_sample":0.8, "k":3,
-                    "rwr_alpha":0.7}
-    return nbs_par_set
-
-
-def echo_input(network, spreadsheet, lut):
+def echo_input(network, spreadsheet, par_set_dict):
     '''Prints User's spread sheet and network data Dimensions and sizes
 
     Args:
@@ -590,9 +498,11 @@ def echo_input(network, spreadsheet, lut):
     print('Data Loaded:\t{}'.format(time.strftime(date_frm, time.localtime())))
     print('adjacency    matrix {} x {}'.format(net_rows, net_cols))
     print('spread sheet matrix {} x {}'.format(usr_rows, usr_cols))
-    print('look up table is {}'.format(lut.shape))
+    
+    for field_n in par_set_dict:
+        print('{} : {}'.format(field_n, par_set_dict[field_n]))
 
-    return date_frm
+    return
 
 
 def initialization(spreadsheet):
@@ -613,18 +523,6 @@ def initialization(spreadsheet):
 
     return  M, I
 
-def parameters_setup():
-    '''Setups the run parameters.
-
-    Returns:
-        percent_sample :
-        number_of_samples :
-    '''
-    percent_sample = 0.8
-    number_of_samples = 5
-
-    return percent_sample, number_of_samples
-
 def display_clusters(M):
     '''Displays the consensus matrix.
 
@@ -644,10 +542,19 @@ def display_clusters(M):
     plt.show()
     return
 
-def write_connectivity_indicator_matrices(M,I,target_file_name):
+def write_co_ind_matrix(M, I, file_name):
+    """ write the connectivity and indicator matrices to file
+    Args:
+        M: connectivity matrix (will write as np.float64)
+        I: indicator matrix (will write as np.float64)
+        file_name: valid file name
+        
+    Returns:
+        status: 0 if succesfull -1 otherwise
+    
     status = 0
     try:
-        write_file = h5py.File(target_file_name, 'w')
+        write_file = h5py.File(file_name, 'w')
         M_dataset = write_file.create_dataset('M', (M.shape), dtype=np.float64)
         M_dataset[...] = M
         I_dataset = write_file.create_dataset('I', (I.shape), dtype=np.float64)
@@ -657,4 +564,119 @@ def write_connectivity_indicator_matrices(M,I,target_file_name):
         status = -1
     
     return status
+    """
+    status = None
+    write_file = h5py.File(file_name, 'w')
+    M_dataset = write_file.create_dataset('M', (M.shape), dtype=np.float64)
+    M_dataset[...] = M
+    I_dataset = write_file.create_dataset('I', (I.shape), dtype=np.float64)
+    I_dataset[...] = I
+    write_file.close()
+    
+    return status
+def read_connectivity_indicator_matrix(file_name):
+    """ write the connectivity and indicator matrices to file
+    
+    Args:
+        file_name: valid file name
+        
+    Returns:
+        M: connectivity matrix (will open as np.float64)
+        I: indicator matrix (will open as np.float64)
+    """
+    fh = h5py.File(file_name, 'r')
+    M = np.float64(np.array(fh['M']))
+    I = np.float64(np.array(fh['I']))
+    fh.close()
+    
+    return M, I
+    
+def write_output(consensus_matrix, columns, labels, file_name):
+    out_df = pd.DataFrame(data=consensus_matrix, columns=columns, index=labels)
+    out_df.to_csv(file_name, sep='\t')
+    
+    return
+    
+def write_sample_labels(columns, labels, file_name):
+    df_tmp = pd.DataFrame(data=labels, index=columns)
+    df_tmp.to_csv(file_name, sep='\t', header=None)
+    
+    return
+    
+""" Depreciated & planned removal """
+def get_mat_input():
+    '''Gets User's spread sheet and network data
+
+    Args:
+        none for now
+
+    Returns:
+         network: full gene-gene network
+         spreadsheet: user's data
+         lut: generated in matlab
+    '''
+    S = spio.loadmat('testSet.mat')
+    network = S["st90norm"]
+    spreadsheet = S["sampleMatrix"].T # gene x patient
+    lut = S["ucecST90Qlut"]
+    lut = np.int64(lut) - 1
+
+    return network, spreadsheet, lut
+    
+def parameters_setup():
+    '''Setups the run parameters.
+
+    Returns:
+        percent_sample :
+        number_of_bootstraps :
+    '''
+    percent_sample = 0.8
+    number_of_bootstraps = 5
+
+    return percent_sample, number_of_bootstraps
+
+def get_a_sample(spreadsheet, percent_sample, lut, network_size):
+    """Selects a sample, by precentage, from a given spread sheet.
+
+    Args:
+        spreadsheet: genexsample spread sheet.
+        percent_sample: percentage of spread sheet to select at random.
+        lut: lookup table.
+        network_size: network size
+
+    Returns:
+        sample_random: A sample of the spread sheet with the specified precentage.
+        patients_permutation: the list the correponds to random sample.
+    """
+    features_size = np.int_(np.round(spreadsheet.shape[0] * percent_sample))
+    features_permutation = np.random.permutation(spreadsheet.shape[0])
+    features_permutation = features_permutation[0:features_size]
+
+    patients_size = np.int_(np.round(spreadsheet.shape[1] * percent_sample))
+    patients_permutation = np.random.permutation(spreadsheet.shape[1])
+    patients_permutation = patients_permutation[0:patients_size]
+
+    sample = spreadsheet[features_permutation.T[:, None], patients_permutation]
+
+    columns = patients_permutation.size
+
+    lut = lut.T
+    lut = lut[features_permutation]
+
+    sample_random = np.zeros((network_size, columns))
+
+    for col_id in range(0, columns):
+        nanozeros_in_col = (sample[:, col_id] != 0)
+        index = lut[nanozeros_in_col]
+        index = index[(index >= 0) & (index <= network_size)]
+        sample_random[index, col_id] = 1
+
+    #---------------------------
+    # eliminate zero columns
+    #---------------------------
+    positive_col_set = sum(sample_random) > 0
+    sample_random = sample_random[:, positive_col_set]
+    patients_permutation = patients_permutation[positive_col_set]
+
+    return sample_random, patients_permutation
     
