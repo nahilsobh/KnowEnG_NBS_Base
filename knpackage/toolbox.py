@@ -11,10 +11,8 @@ import numpy as np
 import numpy.linalg as LA
 import pandas as pd
 import scipy.sparse as spar
-import scipy.io as spio
 from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
-import h5py
 import argparse
 
     
@@ -145,44 +143,7 @@ def normal_matrix(adj_mat):
     
     return adj_mat
 
-def consensus_cluster_nbs(network_sparse, spreadsheet, Ld, Lk, nbs_par_set):
-    """ main loop for this module computes the components for the consensus matrix
-        from the input network and spreadsheet
-    Args:
-        network: genes x genes symmetric adjacency matrix
-        spreadsheet: genes x samples matrix
-        Ld, Lk: laplacian matrix components i.e. L = Ld - Lk
-        nbs_par_set = {"number_of_bootstraps":1, "percent_sample":0.8, "k":3,
-                    "rwr_alpha":0.7}
-        number_of_bootstraps: number of iterations of nbs to try
-        percent_sample: portion of spreadsheet to use in each iteration
-        k: inner dimension of matrx factorization
-        alpha: radom walk with restart proportions
-    
-    Returns:
-        connectivity_matrix: samples x samples count of sample relations
-        indicator_matrix: samples x samples count of sample trials
-    """
-    number_of_bootstraps = np.int_(nbs_par_set["number_of_bootstraps"])
-    percent_sample = np.float64(nbs_par_set["percent_sample"])
-    k = np.int_(nbs_par_set["k"])
-    alpha = np.float64(nbs_par_set["rwr_alpha"])
-    connectivity_matrix, indicator_matrix = initialization(spreadsheet)
 
-    # ----------------------------------------------
-    # Network based clustering loop and aggregation
-    # ----------------------------------------------
-    for sample in range(0, number_of_bootstraps):
-        sample_random, sample_permutation = spreadsheet_sample(spreadsheet, percent_sample)
-        sample_smooth, iterations = rwr(sample_random, network_sparse, alpha)
-        print("{} of {}: iterations = {}".format(sample + 1, number_of_bootstraps, iterations))
-        sample_quantile_norm = quantile_norm(sample_smooth)
-        H, niter = netnmf(sample_quantile_norm, Lk, Ld, k)
-        connectivity_matrix = update_connectivity_matrix(H, sample_permutation, connectivity_matrix)
-        indicator_matrix = update_indicator_matrix(sample_permutation, indicator_matrix)
-        
-    return connectivity_matrix, indicator_matrix
-    
 def form_and_save_h_clusters(adj_mat, spreadsheet, Ld, Lk, nbs_par_set):
     """ main loop for this module computes the components for the consensus matrix
         from the input network and spreadsheet
@@ -226,6 +187,16 @@ def form_and_save_h_clusters(adj_mat, spreadsheet, Ld, Lk, nbs_par_set):
     return
     
 def retrieve_h_clusters_and_form_conensus_matrix(nbs_par_set, connectivity_matrix, indicator_matrix):
+    """ read the tempfiles and compute the consensus matrix
+    
+    Args:
+        nbs_par_set: parameter set dictionary
+        connectivity_matrix: empty connectivity matrix from initialization
+        indicator_matrix: empty indicator matrix from initialization
+        
+    Returns:
+        consensus_matrix: connectivity matrices sum / indicator mat sum
+    """
     temp_dir = nbs_par_set["temp_dir"]
     number_of_bootstraps = np.int_(nbs_par_set["number_of_bootstraps"])
     for sample in range(0, number_of_bootstraps):
@@ -239,6 +210,8 @@ def retrieve_h_clusters_and_form_conensus_matrix(nbs_par_set, connectivity_matri
     consensus_matrix = connectivity_matrix / np.maximum(indicator_matrix, 1)
     
     return consensus_matrix
+    
+    
 def form_network_laplacian(network):
     """ Forms the laplacian matrix.
 
@@ -479,7 +452,9 @@ def reorder_matrix(consensus_matrix, k=3):
     labels = cluster_handle.fit_predict(consensus_matrix)
     sorted_labels = np.argsort(labels)
     M = M[sorted_labels[:, None], sorted_labels]
+    
     return M, labels
+    
 
 def echo_input(network, spreadsheet, par_set_dict):
     '''Prints User's spread sheet and network data Dimensions and sizes
@@ -542,141 +517,18 @@ def display_clusters(M):
     plt.show()
     return
 
-def write_co_ind_matrix(M, I, file_name):
-    """ write the connectivity and indicator matrices to file
-    Args:
-        M: connectivity matrix (will write as np.float64)
-        I: indicator matrix (will write as np.float64)
-        file_name: valid file name
-        
-    Returns:
-        status: 0 if succesfull -1 otherwise
-    
-    status = 0
-    try:
-        write_file = h5py.File(file_name, 'w')
-        M_dataset = write_file.create_dataset('M', (M.shape), dtype=np.float64)
-        M_dataset[...] = M
-        I_dataset = write_file.create_dataset('I', (I.shape), dtype=np.float64)
-        I_dataset[...] = I
-        write_file.close()
-    except:
-        status = -1
-    
-    return status
-    """
-    status = None
-    write_file = h5py.File(file_name, 'w')
-    M_dataset = write_file.create_dataset('M', (M.shape), dtype=np.float64)
-    M_dataset[...] = M
-    I_dataset = write_file.create_dataset('I', (I.shape), dtype=np.float64)
-    I_dataset[...] = I
-    write_file.close()
-    
-    return status
-def read_connectivity_indicator_matrix(file_name):
-    """ write the connectivity and indicator matrices to file
-    
-    Args:
-        file_name: valid file name
-        
-    Returns:
-        M: connectivity matrix (will open as np.float64)
-        I: indicator matrix (will open as np.float64)
-    """
-    fh = h5py.File(file_name, 'r')
-    M = np.float64(np.array(fh['M']))
-    I = np.float64(np.array(fh['I']))
-    fh.close()
-    
-    return M, I
-    
-def write_output(consensus_matrix, columns, labels, file_name):
-    out_df = pd.DataFrame(data=consensus_matrix, columns=columns, index=labels)
-    out_df.to_csv(file_name, sep='\t')
-    
-    return
-    
+
 def write_sample_labels(columns, labels, file_name):
+    """ write the .tsv file that attaches a cluster number to the sample name
+    Args:
+        columns: data identifiers
+        labels: cluster numbers
+        file_name: write to path name
+        
+    Returns:
+        nothing
+    """
     df_tmp = pd.DataFrame(data=labels, index=columns)
     df_tmp.to_csv(file_name, sep='\t', header=None)
     
     return
-    
-""" Depreciated & planned removal """
-def get_mat_input():
-    '''Gets User's spread sheet and network data
-
-    Args:
-        none for now
-
-    Returns:
-         network: full gene-gene network
-         spreadsheet: user's data
-         lut: generated in matlab
-    '''
-    S = spio.loadmat('testSet.mat')
-    network = S["st90norm"]
-    spreadsheet = S["sampleMatrix"].T # gene x patient
-    lut = S["ucecST90Qlut"]
-    lut = np.int64(lut) - 1
-
-    return network, spreadsheet, lut
-    
-def parameters_setup():
-    '''Setups the run parameters.
-
-    Returns:
-        percent_sample :
-        number_of_bootstraps :
-    '''
-    percent_sample = 0.8
-    number_of_bootstraps = 5
-
-    return percent_sample, number_of_bootstraps
-
-def get_a_sample(spreadsheet, percent_sample, lut, network_size):
-    """Selects a sample, by precentage, from a given spread sheet.
-
-    Args:
-        spreadsheet: genexsample spread sheet.
-        percent_sample: percentage of spread sheet to select at random.
-        lut: lookup table.
-        network_size: network size
-
-    Returns:
-        sample_random: A sample of the spread sheet with the specified precentage.
-        patients_permutation: the list the correponds to random sample.
-    """
-    features_size = np.int_(np.round(spreadsheet.shape[0] * percent_sample))
-    features_permutation = np.random.permutation(spreadsheet.shape[0])
-    features_permutation = features_permutation[0:features_size]
-
-    patients_size = np.int_(np.round(spreadsheet.shape[1] * percent_sample))
-    patients_permutation = np.random.permutation(spreadsheet.shape[1])
-    patients_permutation = patients_permutation[0:patients_size]
-
-    sample = spreadsheet[features_permutation.T[:, None], patients_permutation]
-
-    columns = patients_permutation.size
-
-    lut = lut.T
-    lut = lut[features_permutation]
-
-    sample_random = np.zeros((network_size, columns))
-
-    for col_id in range(0, columns):
-        nanozeros_in_col = (sample[:, col_id] != 0)
-        index = lut[nanozeros_in_col]
-        index = index[(index >= 0) & (index <= network_size)]
-        sample_random[index, col_id] = 1
-
-    #---------------------------
-    # eliminate zero columns
-    #---------------------------
-    positive_col_set = sum(sample_random) > 0
-    sample_random = sample_random[:, positive_col_set]
-    patients_permutation = patients_permutation[positive_col_set]
-
-    return sample_random, patients_permutation
-    
