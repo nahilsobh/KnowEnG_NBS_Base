@@ -17,48 +17,53 @@ import argparse
 
     
 def nbs_par_set_dict():
-    """ set of default parameter names for nbs -- filenames mut be replaced
+    """ Get a set of default parameters for nbs with all possible field names.
+        Note that the file names and directorys are place holders only.
+        
+    Args: None
+    
+    Returns:
+        nbs_par_set: a python dictionay of default parameters needed to run the
+                     functions in this module.
+                     
+    nbs_par_set = {"number_of_bootstraps":5,
+                   "percent_sample":0.8,
+                   "k":3,
+                   "rwr_alpha":0.7,
+                   'network_data':'network.edge',
+                   'spreadsheet_data':'spreadsheet.df',
+                   'temp_dir':'/',
+                   'consensus_data_df':'co_dat.df',
+                   'consensus_data_tsv':'co_dat.tsv',
+                   'verbose':1,
+                   'display_clusters':1}
     
     """
-    nbs_par_set = {"number_of_bootstraps":5, "percent_sample":0.8, "k":3,
-                    "rwr_alpha":0.7, 'network_file':'network.edge',
-                    'spreadsheet_file':'spreadsheet.df',
-                    'verbose':1, 'display_clusters':1}
+    nbs_par_set = {"number_of_bootstraps":5,
+                   "percent_sample":0.8,
+                   "k":3,
+                   "rwr_alpha":0.7,
+                   'network_data':'network.edge',
+                   'spreadsheet_data':'spreadsheet.df',
+                   'temp_dir':'/',
+                   'consensus_data_df':'co_dat.df',
+                   'consensus_data_tsv':'co_dat.tsv',
+                   'verbose':1,
+                   'display_clusters':1}
+                   
     return nbs_par_set
     
-def get_input(args):
-    """ read system input arguments and return data from files
     
-    åArgs:
+def get_input(args):
+    """ Read system input arguments and return data from the indicated files.
+    
+    Args:
         args: aka sys.argv
     
     Returns:
         adj_mat: a symmetric adjacency matrix from the network file input
         spreadsheet: genes x samples input data matrix shaped to adj_mat
-        lookup: gene names to location in adj_mat
-        rev_lookup: location in adj_mat to gene_names
         par_set_dict: run parameters including the input data filenames
-    """
-    par_set_dict = get_arg_filenames(args)
-    N_df, S_df = read_input_files(par_set_dict)
-    adj_mat, spreadsheet = df_to_nw_ss(N_df, S_df)
-    adj_mat = normal_matrix(adj_mat)
-    if int(par_set_dict['verbose']) != 0:
-        echo_input(adj_mat, spreadsheet, par_set_dict)
-    
-    return adj_mat, spreadsheet, par_set_dict, S_df.columns
-
-def get_arg_filenames(args):
-    """ exctract parameters dictionary from command line input args and 
-        get the input filenames from that dictionary
-        
-    Args:
-        args: aka sys.argv input to main function
-        
-    Returns:
-        network_file: file name for network .edge
-        spreadsheet_file: file name of spreadsheet .df
-        par_set: dictionary parameter set
     """
     parser = argparse.ArgumentParser()
     parser.add_argument('-parameters', '--par_data', type=str)
@@ -67,25 +72,18 @@ def get_arg_filenames(args):
     par_set_df = pd.read_csv(f_name, sep='\t', header=None, index_col=0)
     par_set_dict = dict(par_set_df.to_dict()[1])
     
-    return par_set_dict
-    
-def read_input_files(par_set_dict):
-    """ read the input parameters filenames into pandas dataframes
-    
-    Args:
-        network_data_file: network (.edge 4 col) file name
-        spreadsheet_data_file: spreadsheet (.df) file name
-
-    Returns:
-        N_df: pandas dataframe of network w/o row or col labels
-        S_df: pandas dataframe of spreadsheet
-    """
     network_file = par_set_dict['network_data']
     spreadsheet_file = par_set_dict['spreadsheet_data']
     N_df = pd.read_table(network_file, sep='\t')
     S_df = pd.read_table(spreadsheet_file, sep='\t', header=0, index_col=0)
     
-    return N_df, S_df
+    adj_mat, spreadsheet = df_to_nw_ss(N_df, S_df)
+    adj_mat = normal_matrix(adj_mat)
+    if int(par_set_dict['verbose']) != 0:
+        echo_input(adj_mat, spreadsheet, par_set_dict)
+    
+    return adj_mat, spreadsheet, par_set_dict, S_df.columns
+
 
 def df_to_nw_ss(N_df, S_df):
     """ convert pandas dataframe representations into data set
@@ -119,6 +117,7 @@ def df_to_nw_ss(N_df, S_df):
     
     return adj_mat, spreadsheet
 
+
 def normal_matrix(adj_mat):
     """ normalize square matrix for random walk id est.
         normalize s.t. the norm of the whole matrix is near one
@@ -145,8 +144,8 @@ def normal_matrix(adj_mat):
 
 
 def form_and_save_h_clusters(adj_mat, spreadsheet, Ld, Lk, nbs_par_set):
-    """ main loop for this module computes the components for the consensus matrix
-        from the input network and spreadsheet
+    """ main loop for this module. Computes the components for the consensus 
+        matrix from the input network and spreadsheet
     Args:
         network: genes x genes symmetric adjacency matrix
         spreadsheet: genes x samples matrix
@@ -186,7 +185,9 @@ def form_and_save_h_clusters(adj_mat, spreadsheet, Ld, Lk, nbs_par_set):
         
     return
     
-def retrieve_h_clusters_and_form_conensus_matrix(nbs_par_set, connectivity_matrix, indicator_matrix):
+    
+def retrieve_h_clusters_and_form_conensus_matrix(nbs_par_set, 
+                                        connectivity_matrix, indicator_matrix):
     """ read the tempfiles and compute the consensus matrix
     
     Args:
@@ -204,8 +205,10 @@ def retrieve_h_clusters_and_form_conensus_matrix(nbs_par_set, connectivity_matri
         H = np.load(hname)
         pname = temp_dir + '/temp_p' + str(sample)
         sample_permutation = np.load(pname)
-        connectivity_matrix = update_connectivity_matrix(H, sample_permutation, connectivity_matrix)
-        indicator_matrix = update_indicator_matrix(sample_permutation, indicator_matrix)
+        connectivity_matrix = update_connectivity_matrix(H, 
+                                    sample_permutation, connectivity_matrix)
+        indicator_matrix = update_indicator_matrix(
+                                    sample_permutation, indicator_matrix)
         
     consensus_matrix = connectivity_matrix / np.maximum(indicator_matrix, 1)
     
@@ -225,7 +228,8 @@ def form_network_laplacian(network):
     laplacian = spar.lil_matrix(network.copy())
     laplacian.setdiag(0)
     laplacian[laplacian != 0] = 1
-    diagonal_laplacian = np.array(laplacian.sum(axis=0)) * np.eye(laplacian.shape[0])
+    diagonal_laplacian = np.array(
+                            laplacian.sum(axis=0)) * np.eye(laplacian.shape[0])
     laplacian = laplacian.tocsr()
     diagonal_laplacian = spar.csr_matrix(diagonal_laplacian)
     
@@ -262,6 +266,7 @@ def spreadsheet_sample(spreadsheet, percent_sample):
 
     return sample_random, patients_permutation
 
+
 def rwr(restart, network_sparse, alpha=0.7, max_iteration=100, tol=1.e-4,
         report_frequency=5):
     """Performs a random walk with restarts.
@@ -287,7 +292,9 @@ def rwr(restart, network_sparse, alpha=0.7, max_iteration=100, tol=1.e-4,
             if deltav < tol:
                 break
         smooth_0 = smooth_1
+        
     return smooth_1, step
+
 
 def quantile_norm(sample):
     """Normalizes an array using quantile normalization (ranking)
@@ -298,12 +305,13 @@ def quantile_norm(sample):
     Returns:
         sample_quantile_norm: quantile normalized sample
     """
-    index = np.argsort(sample, axis=0)           # For each column determine the rank
+    index = np.argsort(sample, axis=0)           # each column determine rank
     sample_sorted_by_rows = np.sort(sample, axis=0)   # Sort each column
-    mean_per_row = sample_sorted_by_rows.mean(1) # For each row determine its mean
+    mean_per_row = sample_sorted_by_rows.mean(1) # each row determine its mean
     sample_quantile_norm = sample.copy()              # initialization
     for j in range(0, sample.shape[1]):
         sample_quantile_norm[index[:, j], j] = mean_per_row[:]
+        
     return sample_quantile_norm
 
 
@@ -380,7 +388,7 @@ def netnmf(x_matrix, Lk, Ld, k=3, lmbda=1400, itMax=10000, HclustEqLim=200,
     """
     epsilon = 1e-15
     w_matrix = np.random.rand(x_matrix.shape[0], k)
-    w_matrix = np.maximum(w_matrix / np.maximum(sum(w_matrix), epsilon), epsilon)
+    w_matrix = np.maximum(w_matrix / np.maximum(sum(w_matrix),epsilon),epsilon)
     h_matrix = np.random.rand(k, x_matrix.shape[1])
     hClustEQ = np.argmax(h_matrix, 0)
     hEqCount = 0
@@ -399,8 +407,10 @@ def netnmf(x_matrix, Lk, Ld, k=3, lmbda=1400, itMax=10000, HclustEqLim=200,
         denomerator = np.maximum(np.dot(w_matrix, np.dot(h_matrix, h_matrix.T))
                                  + lmbda * Ld.dot(w_matrix), epsilon)
         w_matrix = w_matrix * (numerator / denomerator)
-        w_matrix = np.maximum(w_matrix / np.maximum(sum(w_matrix), epsilon), epsilon)
+        w_matrix = np.maximum(w_matrix / np.maximum(
+                                            sum(w_matrix), epsilon), epsilon)
         h_matrix = get_h(w_matrix, x_matrix)
+        
     return h_matrix, itr
 
 
@@ -434,7 +444,8 @@ def update_indicator_matrix(P, I):
         I: modified indicator matrix
     '''
     I[P[:, None], P] += 1
-    return  I
+    
+    return I
 
 
 def reorder_matrix(consensus_matrix, k=3):
@@ -461,8 +472,11 @@ def echo_input(network, spreadsheet, par_set_dict):
 
     Args:
          network: full gene-gene network
-         spreadsheet: user's data
-         lut: generated in matlab
+         spreadsheet: user's genes x samples data 
+         par_set_dict: run parameters dictionary
+         
+    Returns:
+        nothing - just displays the input data to the command line
     '''
     net_rows = network.shape[0]
     net_cols = network.shape[1]
@@ -481,7 +495,7 @@ def echo_input(network, spreadsheet, par_set_dict):
 
 
 def initialization(spreadsheet):
-    '''Initializes connectivity and indicator matrices and setups the run parameters.
+    '''Initializes connectivity and indicator matrices.
 
     Args:
          network: full gene-gene network
@@ -498,11 +512,15 @@ def initialization(spreadsheet):
 
     return  M, I
 
+
 def display_clusters(M):
     '''Displays the consensus matrix.
 
     Args:
          M: consenus matrix.
+         
+    Returns:
+        nothing - just displays the matrix as a heat map
     '''
     methods = [None, 'none', 'nearest', 'bilinear', 'bicubic', 'spline16',
                'spline36', 'hanning', 'hamming', 'hermite', 'kaiser', 'quadric',
@@ -515,18 +533,37 @@ def display_clusters(M):
         ax.imshow(grid, interpolation=interp_method)
         ax.set_title(interp_method)
     plt.show()
+    
+    return
+
+
+def write_output(consensus_matrix, columns, labels, file_name):
+    """ save the consensus matrix as a dataframe with column names and row 
+        cluster number labels
+        
+    Args:
+        columns: data identifiers for column names
+        labels: cluster numbers for row names
+        file_name: write to path name
+        
+    Returns:
+        nothing - just writes the file
+    """
+    out_df = pd.DataFrame(data=consensus_matrix, columns=columns, index=labels)
+    out_df.to_csv(file_name, sep='\t')
+    
     return
 
 
 def write_sample_labels(columns, labels, file_name):
-    """ write the .tsv file that attaches a cluster number to the sample name
+    """ two column file that attaches a cluster number to the sample name
     Args:
         columns: data identifiers
         labels: cluster numbers
         file_name: write to path name
         
     Returns:
-        nothing
+        nothing - just writes the file
     """
     df_tmp = pd.DataFrame(data=labels, index=columns)
     df_tmp.to_csv(file_name, sep='\t', header=None)
