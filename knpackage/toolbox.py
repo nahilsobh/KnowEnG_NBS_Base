@@ -216,7 +216,7 @@ def retrieve_h_clusters_and_form_conensus_matrix(nbs_par_set,
     
     
 def form_network_laplacian(network):
-    """ Forms the laplacian matrix.
+    """Forms the laplacian matrix.
 
     Args:
         network: adjancy matrix.
@@ -225,16 +225,21 @@ def form_network_laplacian(network):
         diagonal_laplacian: the diagonal of the laplacian matrix.
         laplacian: the laplacian matrix.
     """
-    laplacian = spar.lil_matrix(network.copy())
-    laplacian.setdiag(0)
+    laplacian = network.copy()
+    if spar.issparse(laplacian):
+        laplacian = laplacian.todense()
+        
+    laplacian = network - np.diag(np.diag(laplacian))
     laplacian[laplacian != 0] = 1
-    diagonal_laplacian = np.array(
-                            laplacian.sum(axis=0)) * np.eye(laplacian.shape[0])
-    laplacian = laplacian.tocsr()
-    diagonal_laplacian = spar.csr_matrix(diagonal_laplacian)
-    
-    return diagonal_laplacian, laplacian
+    rowsum = sum(laplacian)
+    diagonal_laplacian = np.eye(rowsum.size)
+    for d in range(0, rowsum.size):
+        diagonal_laplacian[d, d] = rowsum[0, d]
 
+    laplacian = spar.csr_matrix(laplacian)
+    diagonal_laplacian = spar.csr_matrix(diagonal_laplacian)
+
+    return diagonal_laplacian, laplacian
 
 def spreadsheet_sample(spreadsheet, percent_sample):
     """Selects a sample, by precentage, from a spread sheet already projected
