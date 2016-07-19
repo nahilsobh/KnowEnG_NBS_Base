@@ -28,7 +28,7 @@ def main():
     Ld, Lk = kn.form_network_laplacian(adj_mat)
     kn.form_and_save_h_clusters(adj_mat, spreadsheet, Ld, Lk, par_set_dict)
     connectivity_matrix, indicator_matrix = kn.initialization(spreadsheet)
-    consensus_matrix = kn.retrieve_h_clusters_and_form_conensus_matrix(
+    consensus_matrix = kn.htemps_to_consensusmatrix(
         par_set_dict, connectivity_matrix, indicator_matrix)
     M, labels = kn.reorder_matrix(consensus_matrix, int(par_set_dict['k']))
     if int(par_set_dict['display_clusters']) != 0:
