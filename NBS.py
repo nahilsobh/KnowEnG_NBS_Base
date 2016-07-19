@@ -4,7 +4,6 @@ Created on Tue Jun 21 11:48:41 2016
 @author: dlanier
 @author: nahilsobh
 
-
 This script performs network based clustering
 """
 
@@ -16,10 +15,11 @@ def main():
         with consensus clustering
     
     Args:
-        defaults: knpackage.toolbox.nbs_par_set_dict
-        args='-parameters /Users/del/tempOLE/keg_nbs_luad_h90q.df'
-        args='-parameters /Users/del/tempOLE/keg_nbs_ov_h90q.df'
-        args='-parameters /Users/del/tempOLE/keg_nbs_ucec_st90q.df'
+        args='-parameters /Users/del/KnowEnG_NBS_Local/keg_nbs_luad_h90q.df'
+        args='-parameters /Users/del/KnowEnG_NBS_Local/keg_nbs_ov_h90q.df'
+        args='-parameters /Users/del/KnowEnG_NBS_Local/keg_nbs_ucec_st90q.df'
+        (default_parameter_set = knpackage.toolbox.nbs_par_set_dict)
+        
     Returns:
         nothing
         
@@ -33,7 +33,11 @@ def main():
     M, labels = kn.reorder_matrix(consensus_matrix, int(par_set_dict['k']))
     if int(par_set_dict['display_clusters']) != 0:
         kn.display_clusters(M)
-    kn.write_sample_labels(sample_names, labels, par_set_dict['consensus_data_filename'])
+    
+    kn.write_output(consensus_matrix, sample_names, labels,
+                    par_set_dict['consensus_data_df'])
+    kn.write_sample_labels(sample_names, labels,
+                           par_set_dict['consensus_data_tsv'])
     
 if __name__ == "__main__":
     main()
