@@ -79,10 +79,11 @@ def get_input(args):
     ss_df = pd.read_table(spreadsheet_file, sep='\t', header=0, index_col=0)
 
     adj_mat, spreadsheet = df_to_nw_ss(nw_df, ss_df)
-    adj_mat = normal_matrix(adj_mat)
+    adj_mat = normalized_matrix(adj_mat)
     if int(par_set_dict['verbose']) != 0:
         echo_input(adj_mat, spreadsheet, par_set_dict)
     columns = ss_df.columns
+    
     return adj_mat, spreadsheet, par_set_dict, columns
 
 
@@ -117,31 +118,6 @@ def df_to_nw_ss(nw_df, ss_df):
     spreadsheet = ss_df.as_matrix()
 
     return adj_mat, spreadsheet
-
-
-def normal_matrix(adj_mat):
-    """ normalize square matrix for random walap_val id est.
-        normalize s.t. the norm of the whole matrix is near one
-
-    Args:
-        adj_mat: usually an adjacency matrix
-
-    Returns:
-        adj_mat: renomralized input s.t. norm(adj_mat) is about 1
-    """
-    d_sm = sum(adj_mat)
-    if spar.issparse(d_sm):
-        d_sm = d_sm.todense()
-    n_diag = d_sm.size
-    d_sm = np.sqrt(1 / d_sm)
-    d_bg = np.zeros((n_diag, n_diag))
-    for r_c in range(0, n_diag):
-        d_bg[r_c, r_c] = d_sm[0, r_c]
-    d_bg = spar.csr_matrix(d_bg)
-    adj_mat = d_bg.dot(adj_mat)
-    adj_mat = adj_mat.dot(d_bg.T)
-
-    return adj_mat
 
 
 def form_and_save_h_clusters(adj_mat, spreadsheet, lap_dag, lap_val, nbs_par_set):
@@ -183,7 +159,7 @@ def form_and_save_h_clusters(adj_mat, spreadsheet, lap_dag, lap_val, nbs_par_set
     return
 
 
-def htemps_to_consensusmatrix(nbs_par_set, connectivity_matrix, indicator_matrix):
+def read_h_clusters_to_consensus_matrix(nbs_par_set, connectivity_matrix, indicator_matrix):
     """ read the tempfiles and compute the consensus matrix
 
     Args:
@@ -209,39 +185,54 @@ def htemps_to_consensusmatrix(nbs_par_set, connectivity_matrix, indicator_matrix
 
     return consensus_matrix
 
+def normalized_matrix(adj_mat):
+    """ normalize square matrix for random walap_val id est.
+        normalize s.t. the norm of the whole matrix is near one
 
-def form_network_laplacian(network):
+    Args:
+        adj_mat: usually an adjacency matrix
+
+    Returns:
+        adj_mat: renomralized input s.t. norm(adj_mat) is about 1
+    """
+    row_sm = np.array(adj_mat.sum(axis=0))
+    row_sm = 1.0 / row_sm
+    row_sm = np.sqrt(row_sm)
+    r_c = np.arange(0, adj_mat.shape[0])
+    diag_mat = spar.csr_matrix((row_sm[0, :],(r_c, r_c)),shape=(adj_mat.shape))
+    adj_mat = diag_mat.dot(adj_mat)
+    adj_mat = adj_mat.dot(diag_mat)
+
+    return adj_mat
+
+def form_network_laplacian(adj_mat):
     """Forms the laplacian matrix.
 
     Args:
-        network: adjancy matrix.
+        adj_mat: adjancy matrix.
 
     Returns:
         diagonal_laplacian: the diagonal of the laplacian matrix.
         laplacian: the laplacian matrix.
     """
-    laplacian = network.copy()
-    if spar.issparse(laplacian):
-        laplacian = laplacian.todense()
-
-    laplacian = network - np.diag(np.diag(laplacian))
+    laplacian = spar.lil_matrix(adj_mat.copy())
+    laplacian.setdiag(0)
     laplacian[laplacian != 0] = 1
-    rowsum = sum(laplacian)
-    diagonal_laplacian = np.eye(rowsum.size)
-    for r_c in range(0, rowsum.size):
-        diagonal_laplacian[r_c, r_c] = rowsum[0, r_c]
-
-    laplacian = spar.csr_matrix(laplacian)
-    diagonal_laplacian = spar.csr_matrix(diagonal_laplacian)
-
+    diag_length = laplacian.shape[0]    
+    rowsum = np.array(laplacian.sum(axis=0))
+    diag_arr = np.arange(0, diag_length)
+    diagonal_laplacian = spar.csr_matrix((rowsum[0, :],(diag_arr, diag_arr)),
+                                         shape=(adj_mat.shape))
+    laplacian = laplacian.tocsr()
+    
     return diagonal_laplacian, laplacian
 
 def spreadsheet_sample(spreadsheet, percent_sample):
     """Selects a sample, by precentage, from a spread sheet already projected
-        on network.
+        on adj_mat.
 
     Args:
-        spreadsheet: (network) gene x sample spread sheet.
+        spreadsheet: (adj_mat) gene x sample spread sheet.
         percent_sample: percentage of spread sheet to select at random.
 
     Returns:
@@ -442,6 +433,11 @@ def update_indicator_matrix(sample_perm, indicator_matrix):
 
     return indicator_matrix
 
+def get_labels(consensus_matrix, k=3):
+    cluster_handle = KMeans(k, random_state=10)
+    labels = cluster_handle.fit_predict(consensus_matrix)
+    
+    return labels
 
 def reorder_matrix(consensus_matrix, k=3):
     '''Performs K-means and use its labels to reorder the consensus matrix
@@ -454,12 +450,11 @@ def reorder_matrix(consensus_matrix, k=3):
         M: ordered consensus
     '''
     cc_cm = consensus_matrix.copy()
-    cluster_handle = KMeans(k, random_state=10)
-    labels = cluster_handle.fit_predict(consensus_matrix)
+    labels = get_labels(consensus_matrix, k)
     sorted_labels = np.argsort(labels)
     cc_cm = cc_cm[sorted_labels[:, None], sorted_labels]
 
-    return cc_cm, labels
+    return cc_cm
 
 
 def echo_input(network, spreadsheet, par_set_dict):
