@@ -6,6 +6,8 @@ Created on Tue Jun 28 14:39:35 2016
 @author: dlanier
 
 """
+# import sessionparameters as ses_par
+
 import argparse
 import time
 import numpy as np
@@ -15,7 +17,6 @@ import pandas as pd
 import scipy.sparse as spar
 from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
-
 
 def nbs_par_set_dict():
     """ Get a set of default parameters for nbs with all possible fielap_dag names.
@@ -54,6 +55,19 @@ def nbs_par_set_dict():
 
     return nbs_par_set
 
+def get_session_parameters(f_name):
+    """ read paramegers file into parameters dictionary
+    
+    Args:
+        f_name: file name
+        
+    Returns:
+        par_set_dict: python dictionary of name - value parameters
+    """
+    par_set_df = pd.read_csv(f_name, sep='\t', header=None, index_col=0)
+    session_parameters = par_set_df.to_dict()[1]
+    
+    return session_parameters
 
 def get_input(args):
     """ Read system input arguments and return data from the indicated files.
