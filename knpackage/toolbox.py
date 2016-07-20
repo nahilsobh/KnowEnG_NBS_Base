@@ -55,18 +55,28 @@ def nbs_par_set_dict():
 
     return nbs_par_set
 
+
 def get_session_parameters(f_name):
     """ read paramegers file into parameters dictionary
-    
+
     Args:
         f_name: file name
-        
+
     Returns:
         par_set_dict: python dictionary of name - value parameters
+        pars = {'method':'Fisher',
+            'network_etype':'None',
+            'network_taxon':'None',
+            'property_etype':'None',
+            'property_taxon':'None',
+            'network_threshold':1.0,
+            'restart_probability':0.7,
+            'number_of_iterations':100,
+            'tolerence':1e-4}
     """
     par_set_df = pd.read_csv(f_name, sep='\t', header=None, index_col=0)
     session_parameters = par_set_df.to_dict()[1]
-    
+
     return session_parameters
 
 def get_input(args):
@@ -85,7 +95,7 @@ def get_input(args):
     args = parser.parse_args()
     f_name = args.par_data
     par_set_df = pd.read_csv(f_name, sep='\t', header=None, index_col=0)
-    par_set_dict = par_set_df.to_dict()[1] # par_set_dict = dict(par_set_df.to_dict()[1])
+    par_set_dict = par_set_df.to_dict()[1]
 
     network_file = par_set_dict['network_data']
     spreadsheet_file = par_set_dict['spreadsheet_data']
@@ -97,7 +107,7 @@ def get_input(args):
     if int(par_set_dict['verbose']) != 0:
         echo_input(adj_mat, spreadsheet, par_set_dict)
     columns = ss_df.columns
-    
+
     return adj_mat, spreadsheet, par_set_dict, columns
 
 
@@ -213,7 +223,7 @@ def normalized_matrix(adj_mat):
     row_sm = 1.0 / row_sm
     row_sm = np.sqrt(row_sm)
     r_c = np.arange(0, adj_mat.shape[0])
-    diag_mat = spar.csr_matrix((row_sm[0, :],(r_c, r_c)),shape=(adj_mat.shape))
+    diag_mat = spar.csr_matrix((row_sm[0, :], (r_c, r_c)), shape=(adj_mat.shape))
     adj_mat = diag_mat.dot(adj_mat)
     adj_mat = adj_mat.dot(diag_mat)
 
@@ -232,13 +242,13 @@ def form_network_laplacian(adj_mat):
     laplacian = spar.lil_matrix(adj_mat.copy())
     laplacian.setdiag(0)
     laplacian[laplacian != 0] = 1
-    diag_length = laplacian.shape[0]    
+    diag_length = laplacian.shape[0]
     rowsum = np.array(laplacian.sum(axis=0))
     diag_arr = np.arange(0, diag_length)
-    diagonal_laplacian = spar.csr_matrix((rowsum[0, :],(diag_arr, diag_arr)),
+    diagonal_laplacian = spar.csr_matrix((rowsum[0, :], (diag_arr, diag_arr)),
                                          shape=(adj_mat.shape))
     laplacian = laplacian.tocsr()
-    
+
     return diagonal_laplacian, laplacian
 
 def spreadsheet_sample(spreadsheet, percent_sample):
@@ -448,9 +458,17 @@ def update_indicator_matrix(sample_perm, indicator_matrix):
     return indicator_matrix
 
 def get_labels(consensus_matrix, k=3):
+    """ determine cluster assignments for consensus matrix
+    Args:
+        consensus_matrix: connectivity / indicator matrices
+        k: clusters estimate
+
+    Returns:
+        lablels: ordered cluster assignments for consensus_matrix
+    """
     cluster_handle = KMeans(k, random_state=10)
     labels = cluster_handle.fit_predict(consensus_matrix)
-    
+
     return labels
 
 def reorder_matrix(consensus_matrix, k=3):
