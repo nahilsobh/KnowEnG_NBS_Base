@@ -110,6 +110,34 @@ def get_input(args):
 
     return adj_mat, spreadsheet, par_set_dict, columns
 
+def get_nmf_input(args):
+    """ Read system input arguments and return data from the indicated files.
+
+    Args:
+        args: aka sys.argv
+
+    Returns:
+        adj_mat: a symmetric adjacency matrix from the network file input
+        spreadsheet: genes x samples input data matrix shaped to adj_mat
+        par_set_dict: run parameters including the input data filenames
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-parameters', '--par_data', type=str)
+    args = parser.parse_args()
+    f_name = args.par_data
+    par_set_df = pd.read_csv(f_name, sep='\t', header=None, index_col=0)
+    par_set_dict = par_set_df.to_dict()[1]
+
+    spreadsheet_file = par_set_dict['spreadsheet_data']
+    ss_df = pd.read_table(spreadsheet_file, sep='\t', header=0, index_col=0)
+    spreadsheet = ss_df.as_matrix()
+
+    if int(par_set_dict['verbose']) != 0:
+        echo_nmf_input(spreadsheet, par_set_dict)
+    columns = ss_df.columns
+
+    return spreadsheet, par_set_dict, columns
+
 
 def df_to_nw_ss(nw_df, ss_df):
     """ convert pandas dataframe representations into data set
@@ -423,6 +451,78 @@ def netnmf(x_matrix, lap_val, lap_dag, k=3, lmbda=1400, it_max=10000, h_clust_eq
         h_matrix = get_h(w_matrix, x_matrix)
 
     return h_matrix
+    
+def nmf(x_matrix, k=3, it_max=10000, h_clust_eq_limit=200, obj_fcn_chk_freq=50):
+    """Performs nonnegative matrix factorization that minimizes ||X-WH||
+
+    Args:
+        x_matrix: the postive matrix (X) to be decomposed into W.H
+        k: number of clusters
+        it_max: maximim objective function iterations (default = 10000)
+        h_clust_eq_limit: h_matrix no change objective (default = 200)
+        obj_fcn_chk_freq: objective function check interval (default = 50)
+
+    Returns:
+        h_matrix: nonnegative right factor (H)
+    """
+    epsilon = 1e-15
+    w_matrix = np.random.rand(x_matrix.shape[0], k)
+    w_matrix = maximum(w_matrix / maximum(sum(w_matrix), epsilon), epsilon)
+    h_matrix = np.random.rand(k, x_matrix.shape[1])
+    h_clust_eq = np.argmax(h_matrix, 0)
+    h_eq_count = 0
+    for itr in range(0, it_max):
+        if np.mod(itr, obj_fcn_chk_freq) == 0:
+            h_clusters = np.argmax(h_matrix, 0)
+            if (itr > 0) & (sum(h_clust_eq != h_clusters) == 0):
+                h_eq_count = h_eq_count + obj_fcn_chk_freq
+            else:
+                h_eq_count = 0
+            h_clust_eq = h_clusters
+            if h_eq_count >= h_clust_eq_limit:
+                break
+        numerator = maximum(np.dot(x_matrix, h_matrix.T), epsilon)
+        denomerator = maximum(np.dot(w_matrix, np.dot(h_matrix, h_matrix.T)), epsilon)
+        w_matrix = w_matrix * (numerator / denomerator)
+        w_matrix = maximum(w_matrix / maximum(sum(w_matrix), epsilon), epsilon)
+        h_matrix = get_h(w_matrix, x_matrix)
+        # H = H * np.dot(W.T, X) / np.dot(np.dot(W.T,W),H) # original nmf methods
+
+    return h_matrix
+
+def nmf_form_save_h_clusters(spreadsheet, nbs_par_set):
+    """ main loop for this module. Computes the components for the consensus
+        matrix from the input network and spreadsheet
+    Args:
+        spreadsheet: genes x samples matrix
+        nbs_par_set = {"number_of_bootstraps":1, "percent_sample":0.8, "k":3,
+                    "rwr_alpha":0.7}
+        number_of_bootstraps: number of iterations of nbs to try
+        percent_sample: portion of spreadsheet to use in each iteration
+        k: inner dimension of matrx factorization
+        alpha: radom walap_val with restart proportions
+
+    Returns:
+        connectivity_matrix: samples x samples count of sample relations
+        indicator_matrix: samples x samples count of sample trials
+    """
+    # ----------------------------------------------
+    # Network based clustering loop and aggregation
+    # ----------------------------------------------
+    for sample in range(0, np.int_(nbs_par_set["number_of_bootstraps"])):
+        sample_random, sample_permutation = spreadsheet_sample(spreadsheet,
+            np.float64(nbs_par_set["percent_sample"]))
+        h_mat = nmf(sample_random, np.int_(nbs_par_set["k"]))
+        hname = nbs_par_set["temp_dir"] + '/temp_h' + str(sample)
+        h_mat.dump(hname)
+        pname = nbs_par_set["temp_dir"] + '/temp_p' + str(sample)
+        sample_permutation.dump(pname)
+        
+        if int(nbs_par_set['verbose']) != 0:
+            print('nmf {} of {}'.format(
+                sample + 1, nbs_par_set["number_of_bootstraps"]))
+
+    return
 
 def update_connectivity_matrix(encode_mat, sample_perm, connectivity_matrix):
     '''Updates the connectivity matrix
@@ -515,6 +615,28 @@ def echo_input(network, spreadsheet, par_set_dict):
 
     return
 
+def echo_nmf_input(spreadsheet, par_set_dict):
+    '''Prints User's spread sheet and network data Dimensions and sizes
+
+    Args:
+         network: full gene-gene network
+         spreadsheet: user's genes x samples data
+         par_set_dict: run parameters dictionary
+
+    Returns:
+        nothing - just displays the input data to the command line
+    '''
+    usr_rows = spreadsheet.shape[0]
+    usr_cols = spreadsheet.shape[1]
+    date_frm = "Local: %a, %d %b %Y %H:%M:%S"
+
+    print('Data Loaded:\t{}'.format(time.strftime(date_frm, time.localtime())))
+    print('spread sheet matrix {} x {}'.format(usr_rows, usr_cols))
+
+    for fielap_dag_n in par_set_dict:
+        print('{} : {}'.format(fielap_dag_n, par_set_dict[fielap_dag_n]))
+
+    return
 
 def initialization(spreadsheet):
     '''Initializes connectivity and indicator matrices.
