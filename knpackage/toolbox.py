@@ -16,7 +16,7 @@ import pandas as pd
 import scipy.sparse as spar
 from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
-
+import os
 
 # ----------------------------------------------
 #   Begin: Read and Prepare Input.
@@ -50,7 +50,8 @@ def get_run_parameters(run_file, run_directory):
     Returns:
         run_parameters: python dictionary of name - value parameters.
     """
-    f_name = run_directory+'/'+run_file
+    #f_name = run_directory+run_file
+    f_name = os.path.join(run_directory, run_file)
     par_set_df = pd.read_csv(f_name, sep='\t', header=None, index_col=0)
     
     run_parameters = par_set_df.to_dict()[1]
@@ -286,6 +287,7 @@ def form_and_save_h_clusters(adj_mat, spreadsheet, lap_dag, lap_val, run_paramet
     # ----------------------------------------------
     # Network based clustering loop and aggregation
     # ----------------------------------------------
+    tmp_dir = run_parameters["tmp_directory"]
     for sample in range(0, np.int_(run_parameters["number_of_bootstraps"])):
         sample_random, sample_permutation = spreadsheet_sample(spreadsheet,
                                             np.float64(run_parameters["percent_sample"]))
@@ -299,9 +301,9 @@ def form_and_save_h_clusters(adj_mat, spreadsheet, lap_dag, lap_val, run_paramet
 
         sample_quantile_norm = quantile_norm(sample_smooth)
         h_mat = netnmf(sample_quantile_norm, lap_val, lap_dag, np.int_(run_parameters["k"]))
-        hname = run_parameters["tmp_directory"] + '/temp_h' + str(sample)
+        hname = os.path.join(tmp_dir, ('temp_h' + str(sample)))
         h_mat.dump(hname)
-        pname = run_parameters["tmp_directory"] + '/temp_p' + str(sample)
+        pname = os.path.join(tmp_dir, ('temp_p' + str(sample)))
         sample_permutation.dump(pname)
 
     return
@@ -321,13 +323,15 @@ def nmf_form_save_h_clusters(spreadsheet, run_parameters):
     # ----------------------------------------------
     # nmf clustering loop and aggregation
     # ----------------------------------------------
+    tmp_dir = run_parameters["tmp_directory"]
     for sample in range(0, np.int_(run_parameters["number_of_bootstraps"])):
         sample_random, sample_permutation = spreadsheet_sample(spreadsheet,
                                                 np.float64(run_parameters["percent_sample"]))
         h_mat = nmf(sample_random, np.int_(run_parameters["k"]))
-        hname = run_parameters["tmp_directory"] + '/temp_h' + str(sample)
+        
+        hname = os.path.join(tmp_dir, ('temp_h' + str(sample)))
         h_mat.dump(hname)
-        pname = run_parameters["tmp_directory"] + '/temp_p' + str(sample)
+        pname = os.path.join(tmp_dir, ('temp_p' + str(sample)))
         sample_permutation.dump(pname)
 
         if int(run_parameters['verbose']) != 0:
@@ -352,9 +356,9 @@ def read_h_clusters_to_consensus_matrix(run_parameters, connectivity_matrix, ind
     tmp_dir = run_parameters["tmp_directory"]
     number_of_bootstraps = np.int_(run_parameters["number_of_bootstraps"])
     for sample in range(0, number_of_bootstraps):
-        hname = tmp_dir + '/temp_h' + str(sample)
+        hname = os.path.join(tmp_dir, ('temp_h' + str(sample)))
         h_mat = np.load(hname)
-        pname = tmp_dir + '/temp_p' + str(sample)
+        pname = os.path.join(tmp_dir, ('temp_p' + str(sample)))
         sample_permutation = np.load(pname)
         connectivity_matrix = update_connectivity_matrix(h_mat,
                                                          sample_permutation, connectivity_matrix)
@@ -784,9 +788,9 @@ def write_consensus_matrix(consensus_matrix, columns, labels, run_parameters):
         nothing - just writes the file
     """
     if int(run_parameters["use_now_name"]) != 0:
-        file_name = now_name(run_parameters["run_directory"] + '/' + 'consensus_data', 'df')
+        file_name = os.path.join(run_parameters["run_directory"], now_name('consensus_data', 'df'))
     else:
-        file_name = run_parameters["run_directory"] + '/' + 'consensus_data.df'
+        file_name = os.path.join(run_parameters["run_directory"], 'consensus_data.df')
     out_df = pd.DataFrame(data=consensus_matrix, columns=columns, index=labels)
     out_df.to_csv(file_name, sep='\t')
 
@@ -805,9 +809,10 @@ def write_sample_labels(columns, labels, run_parameters):
         nothing - writes the file
     """
     if int(run_parameters["use_now_name"]) != 0:
-        file_name = now_name(run_parameters["run_directory"] + '/' + 'labels_data', 'tsv')
+        file_name = os.path.join(run_parameters["run_directory"], now_name('labels_data', 'tsv'))
     else:
-        file_name = run_parameters["run_directory"] + '/' + 'labels_data.tsv'
+        file_name = os.path.join(run_parameters["run_directory"], 'labels_data.tsv')
+
     df_tmp = pd.DataFrame(data=labels, index=columns)
     df_tmp.to_csv(file_name, sep='\t', header=None)
 
