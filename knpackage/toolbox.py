@@ -877,6 +877,6 @@ def generate_run_file(file_name='run_file'):
 
     """
     par_dataframe = pd.DataFrame.from_dict(run_parameters_dict(), orient='index')
-    par_dataframe.to_csv(file_name, sep='\t')
+    par_dataframe.to_csv(file_name, sep='\t', header=False)
 
     return
