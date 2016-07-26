@@ -784,9 +784,9 @@ def write_consensus_matrix(consensus_matrix, columns, labels, run_parameters):
         nothing - just writes the file
     """
     if int(run_parameters["use_now_name"]) != 0:
-        file_name = now_name('consensus_data', 'df')
+        file_name = now_name(run_parameters["run_directory"] + '/' + 'consensus_data', 'df')
     else:
-        file_name = 'consensus_data.df'
+        file_name = run_parameters["run_directory"] + '/' + 'consensus_data.df'
     out_df = pd.DataFrame(data=consensus_matrix, columns=columns, index=labels)
     out_df.to_csv(file_name, sep='\t')
 
@@ -805,9 +805,9 @@ def write_sample_labels(columns, labels, run_parameters):
         nothing - writes the file
     """
     if int(run_parameters["use_now_name"]) != 0:
-        file_name = now_name('labels_data', 'tsv')
+        file_name = now_name(run_parameters["run_directory"] + '/' + 'labels_data', 'tsv')
     else:
-        file_name = 'labels_data.tsv'
+        file_name = run_parameters["run_directory"] + '/' + 'labels_data.tsv'
     df_tmp = pd.DataFrame(data=labels, index=columns)
     df_tmp.to_csv(file_name, sep='\t', header=None)
 
