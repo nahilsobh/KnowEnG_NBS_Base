@@ -72,8 +72,8 @@ def get_netnmf_input(run_parameters):
         lap_diag: diagonal component of laplacian matrix
         lap_pos: positional component of laplacian matrix
     """
-    network_file = run_parameters['network_edge_file_name']
-    spreadsheet_file = run_parameters['user_gene_set_file_name']
+    network_file = run_parameters['network_file_name']
+    spreadsheet_file = run_parameters['samples_file_name']
     nw_df = pd.read_table(network_file, sep='\t')
     ss_df = pd.read_table(spreadsheet_file, sep='\t', header=0, index_col=0)
     adj_mat, spreadsheet = df_to_nw_ss(nw_df, ss_df)
@@ -131,7 +131,7 @@ def get_nmf_input(run_parameters):
         spreadsheet: genes x samples input data matrix shaped to adj_mat
         sample_names: column names of spreadsheet data
     """
-    spreadsheet_file = run_parameters['user_gene_set_file_name']
+    spreadsheet_file = run_parameters['samples_file_name']
     ss_df = pd.read_table(spreadsheet_file, sep='\t', header=0, index_col=0)
     spreadsheet = ss_df.as_matrix()
 
