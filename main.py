@@ -4,35 +4,59 @@ Created on Wed Jul 20 14:47:45 2016
 
 @author: The Gene Sets Characterization dev team
 """
-# define the function blocks
-def Fisher(session_parameters):
-    print( "You typed Fisher\n")
-    print("method =", session_parameters["method"])
+import time
 
-def DRaWR(session_parameters):
-    print( "You typed DRaWR\n")
-    print("method =", session_parameters["method"])
-
-def Net(session_parameters):
-    print( "You typed Net\n")
-    print("method =", session_parameters["method"])
-
+def nmf(run_parameters):
+    t0 = time.time()
+    print("method =", run_parameters["method"])
+    from knpackage.toolbox import run_solo_nmf
+    run_solo_nmf(run_parameters)
+    print('\n\t\t\trun_nmf time {}'.format(time.time()-t0))
+    
+def cc_nmf(run_parameters):
+    t0 = time.time()
+    print("method =", run_parameters["method"])
+    from knpackage.toolbox import run_cc_nmf
+    run_cc_nmf(run_parameters)
+    print('\n\t\t\tcc_nmf time {}'.format(time.time()-t0))
+    
+def nbsnmf(run_parameters):
+    t0 = time.time()
+    print("method =", run_parameters["method"])
+    from knpackage.toolbox import run_solo_nbs
+    run_solo_nbs(run_parameters)
+    print('\n\t\t\trun_solo_nbs time {}'.format(time.time()-t0))
+    
+def cc_nbsnmf(run_parameters):
+    t0 = time.time()
+    print("method =", run_parameters["method"])
+    from knpackage.toolbox import run_cc_nbs
+    run_cc_nbs(run_parameters)
+    print('\n\t\t\trun_cc_nbs time {}'.format(time.time()-t0))
+    
 # -------------------------------------
 # map the inputs to the function blocks
 # move to global_parameters
 # -------------------------------------
-SELECT = {"Fisher": Fisher, "DRaWR": DRaWR, "Net": Net}
+SELECT = {
+    "NMF": nmf,
+    "NBS": nbsnmf,
+    "cc_NMF": cc_nmf,
+    "cc_NBS": cc_nbsnmf}
 
+import sys
+from knpackage.toolbox import get_input
+from knpackage.toolbox import get_run_parameters
 
-from knpackage.toolbox import get_session_parameters 
-# Dan Here.....
-#def get_session_parameters():
-#    session_parameters={"method":"Fisher"}
-#    return session_parameters
+def main():
+    # run main -work_dir /Users/del/KnowEnG_NBS_Local
+    # --------------------------
+    # Run the appropriate method found in RUN_FILE
+    # --------------------------
+    default_run_parameters_file='RUN_FILE'
+    file = get_input(sys.argv, default_run_parameters_file)
+    run_parameters = get_run_parameters(file)
+    SELECT[run_parameters["method"]](run_parameters)
 
-# --------------------------
-# Run the appropriate method
-# --------------------------
-file = "session_file"
-session_parameters = get_session_parameters(file)
-SELECT[session_parameters["method"]](session_parameters)
+if __name__ == "__main__":
+    main()
