@@ -23,35 +23,38 @@ import matplotlib.pyplot as plt
 # ----------------------------------------------
 
 
-def get_input(args, default_run_parameters_file):
-    """ Read system input arguments (argv) to get directory and form file name.
-        Expecting directory name without trailing '/' character.
+def get_input(args):
+    """ Read system input arguments (argv) to get the run directory name.
 
     Args:
         args: sys.argv (command line input to main())
 
     Returns:
-        f_name: session parameters filename.
+        run_directory: run directory name.
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument('-work_dir', '--work_directory', type=str)
+    parser.add_argument('-run_directory', type=str)
     args = parser.parse_args()
-    f_name = args.work_directory + '/' + default_run_parameters_file
+    run_directory = args.run_directory 
 
-    return f_name
+    return run_directory
 
 
-def get_run_parameters(f_name):
+def get_run_parameters(run_file, run_directory):
     """ Read parameters file into session parameters dictionary.
 
     Args:
-        f_name: session parameters file name.
+        run_file: run parameters file name.
+        run_directory: run directory name.
 
     Returns:
         run_parameters: python dictionary of name - value parameters.
     """
+    f_name = run_directory+'/'+run_file
     par_set_df = pd.read_csv(f_name, sep='\t', header=None, index_col=0)
+    
     run_parameters = par_set_df.to_dict()[1]
+    run_parameters["run_directory"]=run_directory
 
     return run_parameters
 
@@ -147,7 +150,7 @@ def get_nmf_input(run_parameters):
 # ----------------------------------------------
 
 
-def run_cc_nbs(run_parameters):
+def run_cc_net_nmf(run_parameters):
     """ Wrapper for call sequence that performs network based stratification
         with consensus clustering.
 
@@ -177,7 +180,7 @@ def run_cc_nbs(run_parameters):
     return
 
 
-def run_solo_nbs(run_parameters):
+def run_net_nmf(run_parameters):
     """ Wrapper for call sequence that performs network based stratification
 
     Args:
@@ -237,7 +240,7 @@ def run_cc_nmf(run_parameters):
     return
 
 
-def run_solo_nmf(run_parameters):
+def run_nmf(run_parameters):
     """ Wrapper for call sequence that performs non-negative matrix factorization
 
     Args:
@@ -296,9 +299,9 @@ def form_and_save_h_clusters(adj_mat, spreadsheet, lap_dag, lap_val, run_paramet
 
         sample_quantile_norm = quantile_norm(sample_smooth)
         h_mat = netnmf(sample_quantile_norm, lap_val, lap_dag, np.int_(run_parameters["k"]))
-        hname = run_parameters["temp_dir"] + '/temp_h' + str(sample)
+        hname = run_parameters["tmp_directory"] + '/temp_h' + str(sample)
         h_mat.dump(hname)
-        pname = run_parameters["temp_dir"] + '/temp_p' + str(sample)
+        pname = run_parameters["tmp_directory"] + '/temp_p' + str(sample)
         sample_permutation.dump(pname)
 
     return
@@ -322,9 +325,9 @@ def nmf_form_save_h_clusters(spreadsheet, run_parameters):
         sample_random, sample_permutation = spreadsheet_sample(spreadsheet,
                                                 np.float64(run_parameters["percent_sample"]))
         h_mat = nmf(sample_random, np.int_(run_parameters["k"]))
-        hname = run_parameters["temp_dir"] + '/temp_h' + str(sample)
+        hname = run_parameters["tmp_directory"] + '/temp_h' + str(sample)
         h_mat.dump(hname)
-        pname = run_parameters["temp_dir"] + '/temp_p' + str(sample)
+        pname = run_parameters["tmp_directory"] + '/temp_p' + str(sample)
         sample_permutation.dump(pname)
 
         if int(run_parameters['verbose']) != 0:
@@ -346,12 +349,12 @@ def read_h_clusters_to_consensus_matrix(run_parameters, connectivity_matrix, ind
     Returns:
         consensus_matrix: sum of connectivity matrices / indicator matrices sum
     """
-    temp_dir = run_parameters["temp_dir"]
+    tmp_dir = run_parameters["tmp_directory"]
     number_of_bootstraps = np.int_(run_parameters["number_of_bootstraps"])
     for sample in range(0, number_of_bootstraps):
-        hname = temp_dir + '/temp_h' + str(sample)
+        hname = tmp_dir + '/temp_h' + str(sample)
         h_mat = np.load(hname)
-        pname = temp_dir + '/temp_p' + str(sample)
+        pname = tmp_dir + '/temp_p' + str(sample)
         sample_permutation = np.load(pname)
         connectivity_matrix = update_connectivity_matrix(h_mat,
                                                          sample_permutation, connectivity_matrix)
@@ -840,30 +843,30 @@ def run_parameters_dict():
         par_dataframe.to_csv(file_name, sep='\t')
     """
     run_parameters = {
-        "method":"cc_NBS",
+        "method":"cc_net_nmf",
+        "k":4,
+        "number_of_bootstraps":5,
+        "percent_sample":0.8,
+        "restart_probability":0.7,
+        "number_of_iterations":100,
+        "tolerance":1e-4,
+        "network_threshold":1.0,
         "network_etype":"None",
         "network_taxon":"None",
         "property_etype":"None",
-        "property_taxon":"None",
-        "network_threshold":1.0,
-        "restart_probability":0.7,
-        "number_of_iterations":100,
-        "tolerence":1e-4,
-        "percent_sample":0.8,
-        "number_of_bootstraps":5,
-        "k":3,
-        "network_edge_file_name":"network.edge",
-        "user_gene_set_file_name":"spreadsheet.df",
-        "temp_dir":"tmp",
+        "property_taxon":"None",        
+        "network_file_name":"network_file_name",
+        "samples_file_name":"samples_file_name",
+        "tmp_directory":"tmp",
+        "run_directory":"run_directory",
         "use_now_name":1,
         "verbose":1,
-        "display_clusters":1,
-        "this_file_default_name":"keg_session_pars.txt"}
+        "display_clusters":1}
 
     return run_parameters
 
 
-def write_defaults_textfile(file_name='keg_session_pars.txt'):
+def generate_run_file(file_name='run_file'):
     """ Write a defaut parameters set to a text file for editing
 
     Args:
