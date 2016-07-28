@@ -34,12 +34,14 @@ SELECT = {
 
 def main():
     import sys
-    from knpackage.toolbox import get_input
-    from knpackage.toolbox import get_run_parameters
+    #from knpackage.toolbox import get_input
+    #from knpackage.toolbox import get_run_parameters
+    from knpackage.toolbox import get_run_file
 
-    run_directory = get_input(sys.argv)
     run_file = "run_file"
-    run_parameters = get_run_parameters(run_file,run_directory)
+    #run_directory = get_input(sys.argv)    
+    #run_parameters = get_run_parameters(run_file,run_directory)
+    run_parameters = get_run_file(sys.argv, run_file)
     SELECT[run_parameters["method"]](run_parameters)
 
 if __name__ == "__main__":
