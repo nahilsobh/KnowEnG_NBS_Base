@@ -4,9 +4,7 @@ Created on Tue Jun 28 14:39:35 2016
 
 @author: Sobh
 @author: dlanier
-
 """
-import argparse
 
 import time
 import numpy as np
@@ -16,49 +14,173 @@ import pandas as pd
 import scipy.sparse as spar
 from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
+import argparse
 import os
 
-# ----------------------------------------------
-#   Begin: Read and Prepare Input.
-# ----------------------------------------------
 
-
-def get_input(args):
-    """ Read system input arguments (argv) to get the run directory name.
+# ----------------------------------------------
+#   Begin: Read and Prepare Input.                      Refactoring
+# ----------------------------------------------
+def get_run_file(args, run_file):
+    """ Read system input arguments (argv) to get the run directory name and 
+        read run_file into a dictionary.
 
     Args:
         args: sys.argv (command line input to main())
+        run_file: run parameters file name.
 
     Returns:
-        run_directory: run directory name.
+        run_parameters: python dictionary of name - value parameters.
     """
     parser = argparse.ArgumentParser()
     parser.add_argument('-run_directory', type=str)
     args = parser.parse_args()
     run_directory = args.run_directory 
-
-    return run_directory
-
-
-def get_run_parameters(run_file, run_directory):
-    """ Read parameters file into session parameters dictionary.
-
-    Args:
-        run_file: run parameters file name.
-        run_directory: run directory name.
-
-    Returns:
-        run_parameters: python dictionary of name - value parameters.
-    """
-    #f_name = run_directory+run_file
-    f_name = os.path.join(run_directory, run_file)
-    par_set_df = pd.read_csv(f_name, sep='\t', header=None, index_col=0)
-    
+    run_file_name = os.path.join(run_directory, run_file)
+    par_set_df = pd.read_csv(run_file_name, sep='\t', header=None, index_col=0)
     run_parameters = par_set_df.to_dict()[1]
-    run_parameters["run_directory"]=run_directory
-
+    run_parameters["run_directory"] = run_directory
+    
     return run_parameters
 
+
+def get_spreadsheet(run_parameters):
+    """ get the spreadsheet file name from the run_parameters dictionary and
+        read the file into a pandas dataframe.
+
+    Args:
+        run_parameters: python dictionary with 'samples_file_name' key.
+
+    Returns:
+        spreadsheet_df: the spreadsheet dataframe.
+    """
+    spreadsheet_df = pd.read_table(
+        run_parameters['samples_file_name'], sep='\t', header=0, index_col=0)
+
+    return spreadsheet_df
+
+
+def get_network(run_parameters):
+    """ get the network file name from the run_parameters dictionary and
+        read the file into a pandas dataframe.
+
+    Args:
+        run_parameters: python dictionary with 'samples_file_name' key.
+
+    Returns:
+        network_df: the network dataframe.
+    """
+    network_df = pd.read_table(run_parameters['network_file_name'], sep='\t',
+                               header=None, usecols=[0,1,2])
+
+    return network_df
+
+
+def find_network_genes(network_df):
+    """ get the set (list) of all genes in the network dataframe
+    
+    Args:
+        network_df: pandas dataframe of network input file
+        
+    Returns:
+        network_genes: list of network genes
+    """
+    from_nodes = network_df.values[:, 0]
+    to_nodes = network_df.values[:, 1]
+    network_genes = list(set(from_nodes) | set(to_nodes))
+    
+    return network_genes
+    
+def update_spreadsheet(spreadsheet_df, network_genes):
+    """ resize and reorder spreadsheet dataframe to only the genes in the network
+    
+    Args:
+        spreadsheet_df: pandas dataframe of spreadsheet
+        network_genes: python list of all genes in network
+        
+    Returns:
+        spreadsheet_df: pandas dataframe of spreadsheet with only network genes
+    """
+    spreadsheet_df = spreadsheet_df.loc[network_genes].fillna(0)
+    
+    return spreadsheet_df
+
+def create_genes_lookup_table(network_genes):
+    """ create a python dictionary to look up gene locations from gene names
+    
+    Args:
+        network_genes: python list of gene names
+        
+    Returns:
+        genes_lookup_table: python dictionary of gene names to integer locations
+    """
+    genes_lookup_table = dict(zip(network_genes, range(len(network_genes))))
+    
+    return genes_lookup_table
+    
+def symmetrize_df(network_df):
+    """ create matrix symmetry by appending network data frame to itself while
+        swapping col 0 and col 1 in the bottom half
+        
+    Args:
+        network_df: 3 or 4 column pandas data frame
+        
+    Returns:
+        symm_network_df:
+    """
+    N_df = network_df.copy()
+    N_df.loc[N_df.index[:],N_df.columns[0]] = network_df.loc[N_df.index[:],N_df.columns[1]]
+    N_df.loc[N_df.index[:],N_df.columns[1]] = network_df.loc[N_df.index[:],N_df.columns[0]]
+    symm_network_df = pd.concat([network_df, N_df])
+    symm_network_df.index = np.arange(0, symm_network_df.shape[0])
+    
+    return symm_network_df
+    
+#def normalize_df(network_df):
+    
+def map_network_names(network_df, genes_lookup_table):
+    
+    return network_df
+    
+#def convert_df_to_sparse(network_df):
+    #return network_sparse
+    
+# ----------------------------------------------
+#   Begin: Read and Prepare Input.
+# ----------------------------------------------
+
+def df_to_nw_ss(network_df, spreadsheet_df):
+    """ convert pandas dataframe representations into data set
+
+    Args:
+        nw_df: pandas dataframe of network w/o row or col labels
+        ss_df: pandas dataframe of spreadsheet
+
+    Returns:
+        adj_mat: adjacency matrix (sparse, symmetric, genes x genes)
+        spreadsheet: spreadsheet matrix (genes x samples)
+        lookup: dictionary of ensembl names to locations in network
+        rev_lookup: dictionary locations in network to ensembl names
+    """
+    network_genes = find_network_genes(network_df)
+    spreadsheet_df = update_spreadsheet(spreadsheet_df, network_genes)
+    genes_lookup_table = create_genes_lookup_table(network_genes)
+    
+    from_nodes = network_df.values[:, 0]
+    to_nodes = network_df.values[:, 1]
+    
+    row_idx = [genes_lookup_table[i] for i in from_nodes]
+    col_idx = [genes_lookup_table[i] for i in to_nodes]
+    n_vals = np.float64(network_df.values[:, 2])
+
+    matrix_length = len(network_genes)
+
+    adj_mat = spar.csr_matrix((n_vals, (row_idx, col_idx)),
+                              shape=(matrix_length, matrix_length))
+    adj_mat = adj_mat + adj_mat.T                                     # not if symmetric
+    spreadsheet = spreadsheet_df.as_matrix()
+
+    return adj_mat, spreadsheet
 
 def get_netnmf_input(run_parameters):
     """ get input arguments for network based non-negative matrix factroization.
@@ -73,14 +195,11 @@ def get_netnmf_input(run_parameters):
         lap_diag: diagonal component of laplacian matrix
         lap_pos: positional component of laplacian matrix
     """
-    network_file = run_parameters['network_file_name']
-    spreadsheet_file = run_parameters['samples_file_name']
-    nw_df = pd.read_table(network_file, sep='\t')
-    ss_df = pd.read_table(spreadsheet_file, sep='\t', header=0, index_col=0)
+    nw_df = get_network(run_parameters)
+    ss_df = get_spreadsheet(run_parameters)
     adj_mat, spreadsheet = df_to_nw_ss(nw_df, ss_df)
-
+    
     adj_mat = normalized_matrix(adj_mat)
-
     lap_diag, lap_pos = form_network_laplacian(adj_mat)
     sample_names = ss_df.columns
     if int(run_parameters['verbose']) != 0:
@@ -88,38 +207,6 @@ def get_netnmf_input(run_parameters):
 
     return adj_mat, spreadsheet, sample_names, lap_diag, lap_pos
 
-
-def df_to_nw_ss(nw_df, ss_df):
-    """ convert pandas dataframe representations into data set
-
-    Args:
-        nw_df: pandas dataframe of network w/o row or col labels
-        ss_df: pandas dataframe of spreadsheet
-
-    Returns:
-        adj_mat: adjacency matrix (sparse, symmetric, genes x genes)
-        spreadsheet: spreadsheet matrix (genes x samples)
-        lookup: dictionary of ensembl names to locations in network
-        rev_lookup: dictionary locations in network to ensembl names
-    """
-    from_nodes = nw_df.values[:, 0]
-    to_nodes = nw_df.values[:, 1]
-    all_nodes = list(set(from_nodes) | set(to_nodes))
-    ss_df = ss_df.loc[all_nodes].fillna(0)
-    lookup = dict(zip(all_nodes, range(len(all_nodes))))
-    # rev_lookup = dict(zip(range(len(all_nodes)), all_nodes))
-    row_idx = [lookup[i] for i in from_nodes]
-    col_idx = [lookup[i] for i in to_nodes]
-    n_vals = np.float64(nw_df.values[:, 2])
-
-    matrix_length = len(all_nodes)
-
-    adj_mat = spar.csr_matrix((n_vals, (row_idx, col_idx)),
-                              shape=(matrix_length, matrix_length))
-    adj_mat = adj_mat + adj_mat.T
-    spreadsheet = ss_df.as_matrix()
-
-    return adj_mat, spreadsheet
 
 
 def get_nmf_input(run_parameters):
@@ -132,8 +219,7 @@ def get_nmf_input(run_parameters):
         spreadsheet: genes x samples input data matrix shaped to adj_mat
         sample_names: column names of spreadsheet data
     """
-    spreadsheet_file = run_parameters['samples_file_name']
-    ss_df = pd.read_table(spreadsheet_file, sep='\t', header=0, index_col=0)
+    ss_df = get_spreadsheet(run_parameters)
     spreadsheet = ss_df.as_matrix()
 
     if int(run_parameters['verbose']) != 0:
@@ -222,8 +308,7 @@ def run_cc_nmf(run_parameters):
         writes consensus matrix as data frame with column names and labels.
         writes table of sample names with cluster assignments.
     """
-    spreadsheet, sample_names = get_nmf_input(run_parameters)
-
+    spreadsheet, sample_names = get_nmf_input(run_parameters)    
     nmf_form_save_h_clusters(spreadsheet, run_parameters)
 
     connectivity_matrix, indicator_matrix = initialization(spreadsheet)
@@ -251,6 +336,8 @@ def run_nmf(run_parameters):
         writes table of sample names with cluster assignments.
     """
     spreadsheet, sample_names = get_nmf_input(run_parameters)
+
+    #spreadsheet = quantile_norm(spreadsheet)
 
     h_mat = nmf(spreadsheet, np.int_(run_parameters["k"]))
     # labels = np.argmax(h_mat, 0)
@@ -289,7 +376,7 @@ def form_and_save_h_clusters(adj_mat, spreadsheet, lap_dag, lap_val, run_paramet
     # ----------------------------------------------
     tmp_dir = run_parameters["tmp_directory"]
     for sample in range(0, np.int_(run_parameters["number_of_bootstraps"])):
-        sample_random, sample_permutation = spreadsheet_sample(spreadsheet,
+        sample_random, sample_permutation = get_spreadsheet_sample(spreadsheet,
                                             np.float64(run_parameters["percent_sample"]))
         sample_smooth, iterations = rwr(sample_random, adj_mat,
                                         np.float64(run_parameters["restart_probability"]))
@@ -325,8 +412,11 @@ def nmf_form_save_h_clusters(spreadsheet, run_parameters):
     # ----------------------------------------------
     tmp_dir = run_parameters["tmp_directory"]
     for sample in range(0, np.int_(run_parameters["number_of_bootstraps"])):
-        sample_random, sample_permutation = spreadsheet_sample(spreadsheet,
+        sample_random, sample_permutation = get_spreadsheet_sample(spreadsheet,
                                                 np.float64(run_parameters["percent_sample"]))
+                                                
+        #sample_random = quantile_norm(sample_random)
+        
         h_mat = nmf(sample_random, np.int_(run_parameters["k"]))
         
         hname = os.path.join(tmp_dir, ('temp_h' + str(sample)))
@@ -418,7 +508,7 @@ def form_network_laplacian(adj_mat):
 
     return diagonal_laplacian, laplacian
 
-def spreadsheet_sample(spreadsheet, percent_sample):
+def get_spreadsheet_sample(spreadsheet, percent_sample):
     """ Select a (fraction x fraction)sample, from a spreadsheet
 
     Args:
