@@ -32,6 +32,7 @@ SELECT = {
     "net_nmf":net_nmf,
     "cc_net_nmf":cc_net_nmf}
 
+
 def main():
     import sys
     from knpackage.toolbox import get_run_directory
