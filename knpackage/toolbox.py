@@ -37,17 +37,16 @@ def get_run_directory(args):
     
     return run_directory
     
-def get_run_parameters(run_directory, run_file):
+def get_run_parameters(run_directory):
     """ Read system input arguments run directory name and run_file into a dictionary.
 
     Args:
         run_directory: directory where run_file is expected
-        run_file: run parameters file name.
 
     Returns:
         run_parameters: python dictionary of name - value parameters.
     """
-    run_file_name = os.path.join(run_directory, run_file)
+    run_file_name = os.path.join(run_directory, "run_file")
     par_set_df = pd.read_csv(run_file_name, sep='\t', header=None, index_col=0)
     run_parameters = par_set_df.to_dict()[1]
     run_parameters["run_directory"] = run_directory
@@ -63,7 +62,7 @@ def get_spreadsheet(run_parameters):
     Returns:
         spreadsheet_df: the spreadsheet dataframe.
     """
-    spreadsheet_df = pd.read_table(
+    spreadsheet_df = pd.read_csv(
         run_parameters['samples_file_name'], sep='\t', header=0, index_col=0)
 
     return spreadsheet_df
@@ -79,7 +78,7 @@ def get_network(run_parameters):
     Returns:
         network_df: the network dataframe.
     """
-    network_df = pd.read_table(run_parameters['network_file_name'], sep='\t',
+    network_df = pd.read_csv(run_parameters['network_file_name'], sep='\t',
                                header=None, usecols=[0,1,2])
 
     return network_df
@@ -146,6 +145,8 @@ def symmetrize_df(network_df):
     return symm_network_df
     
 #def normalize_df(network_df):
+    #from sklearn.preprocessing import normalize
+    #adj_mat = normalize(adj_mat, norm='l1', axis=1)
     #return network_df
     
 #           see python notebooK       tempOLG/test_rwr_small_vs_CB_rwr
@@ -161,53 +162,39 @@ def map_network_names(network_df, genes_lookup_table):
     """
     from_nodes = network_df.values[:, 0]
     to_nodes = network_df.values[:, 1]
-    network_df.values[:, 0] = [genes_lookup_table[i] for i in from_nodes]
-    network_df.values[:, 1] = [genes_lookup_table[i] for i in to_nodes]
     
-    return network_df
+    row_idx = np.int_(np.array([genes_lookup_table[i] for i in from_nodes]))
+    col_idx = np.int_(np.array([genes_lookup_table[i] for i in to_nodes]))
+    d = {'col_0':row_idx, 'col_1':col_idx, 'col_2':network_df.values[:, 2]}
+    network_numeric_df = pd.DataFrame(d)
     
-#def convert_df_to_sparse(network_df):
-    #return network_sparse
+    return network_numeric_df
+    
+def convert_df_to_sparse(network_df, matrix_length):
+    """ convert network dataframe with numerical columns to scipy.sparse matrix
+    
+    Args:
+        network_df: padas dataframe with numerical columns (data, row_ix, col_ix)
+        matrix_length: size of square "network_sparse" matrix output
+        
+    Returns:
+        network_sparse: scipy.sparse.csr_matrix
+    """
+    nwm = network_df.as_matrix()
+    network_sparse = spar.csr_matrix((np.float_(nwm[:, 2]),
+                                      (np.int_(nwm[:, 0]), np.int_(nwm[:, 1]))),
+                                        shape=(matrix_length, matrix_length))
+    
+    return network_sparse
     
 # ----------------------------------------------
 #   Begin: Read and Prepare Input.
 # ----------------------------------------------
 
-def df_to_nw_ss(network_df, spreadsheet_df):
-    """ convert pandas dataframe representations into data set
 
-    Args:
-        nw_df: pandas dataframe of network w/o row or col labels
-        ss_df: pandas dataframe of spreadsheet
-
-    Returns:
-        adj_mat: adjacency matrix (sparse, symmetric, genes x genes)
-        spreadsheet: spreadsheet matrix (genes x samples)
-        lookup: dictionary of ensembl names to locations in network
-        rev_lookup: dictionary locations in network to ensembl names
-    """
-    network_genes = find_network_genes(network_df)
-    spreadsheet_df = update_spreadsheet(spreadsheet_df, network_genes)
-    genes_lookup_table = create_genes_lookup_table(network_genes)
-    
-    from_nodes = network_df.values[:, 0]
-    to_nodes = network_df.values[:, 1]
-    
-    row_idx = [genes_lookup_table[i] for i in from_nodes]
-    col_idx = [genes_lookup_table[i] for i in to_nodes]
-    n_vals = np.float64(network_df.values[:, 2])
-
-    matrix_length = len(network_genes)
-
-    adj_mat = spar.csr_matrix((n_vals, (row_idx, col_idx)),
-                              shape=(matrix_length, matrix_length))
-    adj_mat = adj_mat + adj_mat.T                                     # not if symmetric
-    spreadsheet = spreadsheet_df.as_matrix()
-
-    return adj_mat, spreadsheet
-
-def get_netnmf_input(run_parameters):
-    """ get input arguments for network based non-negative matrix factroization.
+def get_net_nmf_input(run_parameters):
+    """ get input arguments for network based non-negative matrix factroization
+        using file names specified in the run_parameters
 
     Args:
         run_parameters: parameter set structure of pytyon dictionary type
@@ -219,13 +206,22 @@ def get_netnmf_input(run_parameters):
         lap_diag: diagonal component of laplacian matrix
         lap_pos: positional component of laplacian matrix
     """
-    nw_df = get_network(run_parameters)
-    ss_df = get_spreadsheet(run_parameters)
-    adj_mat, spreadsheet = df_to_nw_ss(nw_df, ss_df)
+    network_df = get_network(run_parameters)
+    spreadsheet_df = get_spreadsheet(run_parameters)
+    
+    network_genes = find_network_genes(network_df) 
+    genes_lookup_table = create_genes_lookup_table(network_genes)
+    network_df = map_network_names(network_df, genes_lookup_table)    
+    network_df = symmetrize_df(network_df)        
+    adj_mat = convert_df_to_sparse(network_df, len(network_genes))
     
     adj_mat = normalized_matrix(adj_mat)
     lap_diag, lap_pos = form_network_laplacian(adj_mat)
-    sample_names = ss_df.columns
+    
+    spreadsheet_df = update_spreadsheet(spreadsheet_df, network_genes)    
+    spreadsheet = spreadsheet_df.as_matrix()
+    sample_names = spreadsheet_df.columns
+    
     if int(run_parameters['verbose']) != 0:
         echo_input(adj_mat, spreadsheet, run_parameters)
 
@@ -272,7 +268,7 @@ def run_cc_net_nmf(run_parameters):
         writes consensus matrix as data frame with column names and labels.
         writes table of sample names with cluster assignments.
     """
-    adj_mat, spreadsheet, sample_names, lap_diag, lap_pos = get_netnmf_input(run_parameters)
+    adj_mat, spreadsheet, sample_names, lap_diag, lap_pos = get_net_nmf_input(run_parameters)
 
     form_and_save_h_clusters(adj_mat, spreadsheet, lap_diag, lap_pos, run_parameters)
 
@@ -343,11 +339,11 @@ def run_net_nmf(run_parameters):
     Returns: (no variables)
         writes table of sample names with cluster assignments.
     """
-    adj_mat, spreadsheet, sample_names, lap_diag, lap_pos = get_netnmf_input(run_parameters)
+    adj_mat, spreadsheet, sample_names, lap_diag, lap_pos = get_net_nmf_input(run_parameters)
     sample_smooth, iterations = perform_rwr_on_spreadsheet(spreadsheet, adj_mat,
                                     np.float64(run_parameters["restart_probability"]))
     sample_quantile_norm = get_quantile_norm(sample_smooth)
-    h_mat = netnmf(sample_quantile_norm, lap_pos, lap_diag, np.int_(run_parameters["k"]))
+    h_mat = perform_net_nmf(sample_quantile_norm, lap_pos, lap_diag, np.int_(run_parameters["k"]))
 
     sp_size = spreadsheet.shape[1]
     connectivity_matrix = np.zeros((sp_size, sp_size))
@@ -454,7 +450,7 @@ def form_and_save_h_clusters(adj_mat, spreadsheet, lap_dag, lap_val, run_paramet
                 iterations))
 
         sample_quantile_norm = get_quantile_norm(sample_smooth)
-        h_mat = netnmf(sample_quantile_norm, lap_val, lap_dag, np.int_(run_parameters["k"]))
+        h_mat = perform_net_nmf(sample_quantile_norm, lap_val, lap_dag, np.int_(run_parameters["k"]))
         
         save_cluster(h_mat, sample_permutation, run_parameters, sample)
         #hname = os.path.join(tmp_dir, ('temp_h' + str(sample)))
@@ -662,11 +658,11 @@ def get_quantile_norm(sample):
 
 
 def get_h(w_matrix, x_matrix):
-    """Finds a nonnegative right factor (H) of the netnmf function
+    """Finds a nonnegative right factor (H) of the perform_net_nmf function
     X ~ W.H
 
     Args:
-        w_matrix: the positive left factor (W) of the netnmf function
+        w_matrix: the positive left factor (W) of the perform_net_nmf function
         x_matrix: the postive matrix (X) to be decomposed
 
     Returns:
@@ -713,7 +709,7 @@ def get_h(w_matrix, x_matrix):
     return h_matrix
 
 
-def netnmf(x_matrix, lap_val, lap_dag, k=3, lmbda=1400, it_max=10000, h_clust_eq_limit=200,
+def perform_net_nmf(x_matrix, lap_val, lap_dag, k=3, lmbda=1400, it_max=10000, h_clust_eq_limit=200,
            obj_fcn_chk_freq=50):
     """Performs network based nonnegative matrix factorization that
     minimizes( ||X-WH|| + lambda.tr(W'.L.W)
