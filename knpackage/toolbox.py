@@ -25,7 +25,7 @@ def get_run_directory(args):
     """ Read system input arguments (argv) to get the run directory name
 
     Args:
-        args: sys.argv (command line input to main())
+        args: sys.argv, command line input; python main -run_directory dir_name
 
     Returns:
         run_directory: directory where run_file is expected
@@ -277,19 +277,62 @@ def run_cc_net_nmf(run_parameters):
     form_and_save_h_clusters(adj_mat, spreadsheet, lap_diag, lap_pos, run_parameters)
 
     connectivity_matrix, indicator_matrix = initialization(spreadsheet)
-    consensus_matrix = read_h_clusters_to_consensus_matrix(
+    consensus_matrix = form_consensus_matrix(
         run_parameters, connectivity_matrix, indicator_matrix)
-    labels = get_labels(consensus_matrix, int(run_parameters['k']))
+    labels = cluster_consensus_matrix(consensus_matrix, int(run_parameters['k']))
 
-    write_consensus_matrix(consensus_matrix, sample_names, labels, run_parameters)
-    write_sample_labels(sample_names, labels, run_parameters)
+    save_cc_net_nmf_result(consensus_matrix, sample_names, labels, run_parameters)
 
     if int(run_parameters['display_clusters']) != 0:
         con_mat_image = reorder_matrix(consensus_matrix, int(run_parameters['k']))
         display_clusters(con_mat_image)
 
     return
+    
+def save_cc_net_nmf_result(consensus_matrix, sample_names, labels, run_parameters):
+    """ write the results of consensus clustering network based nmt to output files
+    
+    Args:
+        consensus_matrix: sample_names X labels symmetric consensus matrix
+        sample_names: spreadsheet column names
+        labels: cluster assignments for column names or consensus matrix
+        run_parameters: python dictionary with "run_directory"
+        
+    Returns: (nothing)
+    """
+    #write_consensus_matrix(consensus_matrix, sample_names, labels, run_parameters)
+    if int(run_parameters["use_now_name"]) != 0:
+        file_name = os.path.join(run_parameters["run_directory"], now_name('consensus_data', 'df'))
+    else:
+        file_name = os.path.join(run_parameters["run_directory"], 'consensus_data.df')
+    out_df = pd.DataFrame(data=consensus_matrix, columns=sample_names, index=labels)
+    out_df.to_csv(file_name, sep='\t')
+    
+    #write_sample_labels(sample_names, labels, run_parameters)
+    if int(run_parameters["use_now_name"]) != 0:
+        file_name = os.path.join(run_parameters["run_directory"], now_name('labels_data', 'tsv'))
+    else:
+        file_name = os.path.join(run_parameters["run_directory"], 'labels_data.tsv')
 
+    df_tmp = map_cluster_elements_to_spreadsheet_names(sample_names, labels)
+    df_tmp.to_csv(file_name, sep='\t', header=None)
+    
+    return
+
+def map_cluster_elements_to_spreadsheet_names(sample_names, labels):
+    """ create a pandas dataframe with the spreadsheet column names as index and
+        the cluster numbers as data
+        
+    Args:
+        sample_names: spreadsheet column names
+        labels: cluster number assignments
+        
+    Returns:
+        clusters_dataframe:  pandas dataframe with paired sample_names and labels
+    """
+    clusters_dataframe = pd.DataFrame(data=labels, index=sample_names)
+    
+    return clusters_dataframe
 
 def run_net_nmf(run_parameters):
     """ Wrapper for call sequence that performs network based stratification
@@ -310,7 +353,7 @@ def run_net_nmf(run_parameters):
     connectivity_matrix = np.zeros((sp_size, sp_size))
     sample_perm = np.arange(0, sp_size)
     connectivity_matrix = update_connectivity_matrix(h_mat, sample_perm, connectivity_matrix)
-    labels = get_labels(connectivity_matrix, np.int_(run_parameters["k"]))
+    labels = cluster_consensus_matrix(connectivity_matrix, np.int_(run_parameters["k"]))
 
     write_sample_labels(sample_names, labels, run_parameters)
 
@@ -336,9 +379,9 @@ def run_cc_nmf(run_parameters):
     nmf_form_save_h_clusters(spreadsheet, run_parameters)
 
     connectivity_matrix, indicator_matrix = initialization(spreadsheet)
-    consensus_matrix = read_h_clusters_to_consensus_matrix(
+    consensus_matrix = form_consensus_matrix(
         run_parameters, connectivity_matrix, indicator_matrix)
-    labels = get_labels(consensus_matrix, int(run_parameters['k']))
+    labels = cluster_consensus_matrix(consensus_matrix, int(run_parameters['k']))
 
     write_consensus_matrix(consensus_matrix, sample_names, labels, run_parameters)
     write_sample_labels(sample_names, labels, run_parameters)
@@ -370,7 +413,7 @@ def run_nmf(run_parameters):
     connectivity_matrix = np.zeros((sp_size, sp_size))
     sample_perm = np.arange(0, sp_size)
     connectivity_matrix = update_connectivity_matrix(h_mat, sample_perm, connectivity_matrix)
-    labels = get_labels(connectivity_matrix, np.int_(run_parameters["k"]))
+    labels = cluster_consensus_matrix(connectivity_matrix, np.int_(run_parameters["k"]))
 
     write_sample_labels(sample_names, labels, run_parameters)
 
@@ -455,7 +498,7 @@ def nmf_form_save_h_clusters(spreadsheet, run_parameters):
     return
 
 
-def read_h_clusters_to_consensus_matrix(run_parameters, connectivity_matrix, indicator_matrix):
+def form_consensus_matrix(run_parameters, connectivity_matrix, indicator_matrix):
     """ read anonymous bootstrap tmp files compute the consensus matrix for
         whichever method wrote them.
 
@@ -795,7 +838,7 @@ def update_indicator_matrix(sample_perm, indicator_matrix):
     return indicator_matrix
 
 
-def get_labels(consensus_matrix, k=3):
+def cluster_consensus_matrix(consensus_matrix, k=3):
     """ determine cluster assignments for consensus matrix
 
     Args:
@@ -830,7 +873,7 @@ def reorder_matrix(consensus_matrix, k=3):
         M: ordered consensus
     '''
     cc_cm = consensus_matrix.copy()
-    labels = get_labels(consensus_matrix, k)
+    labels = cluster_consensus_matrix(consensus_matrix, k)
     sorted_labels = np.argsort(labels)
     cc_cm = cc_cm[sorted_labels[:, None], sorted_labels]
 
