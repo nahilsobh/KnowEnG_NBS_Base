@@ -21,7 +21,7 @@ import os
 # ----------------------------------------------
 #   Begin: Read and Prepare Input.                      Refactoring
 # ----------------------------------------------
-def get_run_file(args, run_file):
+def get_run_directory(args):
     """ Read system input arguments (argv) to get the run directory name and 
         read run_file into a dictionary.
 
@@ -36,13 +36,25 @@ def get_run_file(args, run_file):
     parser.add_argument('-run_directory', type=str)
     args = parser.parse_args()
     run_directory = args.run_directory 
+    
+    return run_directory
+    
+def get_run_parameters(run_directory, run_file):
+    """ Read system input arguments (argv) to get the run directory name and 
+        read run_file into a dictionary.
+
+    Args:
+        args: sys.argv (command line input to main())
+        run_file: run parameters file name.
+
+    Returns:
+        run_parameters: python dictionary of name - value parameters.
+    """
     run_file_name = os.path.join(run_directory, run_file)
     par_set_df = pd.read_csv(run_file_name, sep='\t', header=None, index_col=0)
     run_parameters = par_set_df.to_dict()[1]
     run_parameters["run_directory"] = run_directory
-    
     return run_parameters
-
 
 def get_spreadsheet(run_parameters):
     """ get the spreadsheet file name from the run_parameters dictionary and
@@ -137,8 +149,23 @@ def symmetrize_df(network_df):
     return symm_network_df
     
 #def normalize_df(network_df):
+    #return network_df
     
+#           see python notebooK       tempOLG/test_rwr_small_vs_CB_rwr
 def map_network_names(network_df, genes_lookup_table):
+    """ replace the node names with numbers for input to sparse matrix
+    
+    Args:
+        network_df:
+        genes_lookup_table:
+        
+    Returns:
+        network_df: the same dataframe with integer 
+    """
+    from_nodes = network_df.values[:, 0]
+    to_nodes = network_df.values[:, 1]
+    network_df.values[:, 0] = [genes_lookup_table[i] for i in from_nodes]
+    network_df.values[:, 1] = [genes_lookup_table[i] for i in to_nodes]
     
     return network_df
     
