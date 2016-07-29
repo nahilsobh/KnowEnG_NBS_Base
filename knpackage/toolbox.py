@@ -22,15 +22,13 @@ import os
 #   Begin: Read and Prepare Input.                      Refactoring
 # ----------------------------------------------
 def get_run_directory(args):
-    """ Read system input arguments (argv) to get the run directory name and 
-        read run_file into a dictionary.
+    """ Read system input arguments (argv) to get the run directory name
 
     Args:
         args: sys.argv (command line input to main())
-        run_file: run parameters file name.
 
     Returns:
-        run_parameters: python dictionary of name - value parameters.
+        run_directory: directory where run_file is expected
     """
     parser = argparse.ArgumentParser()
     parser.add_argument('-run_directory', type=str)
@@ -40,11 +38,10 @@ def get_run_directory(args):
     return run_directory
     
 def get_run_parameters(run_directory, run_file):
-    """ Read system input arguments (argv) to get the run directory name and 
-        read run_file into a dictionary.
+    """ Read system input arguments run directory name and run_file into a dictionary.
 
     Args:
-        args: sys.argv (command line input to main())
+        run_directory: directory where run_file is expected
         run_file: run parameters file name.
 
     Returns:
