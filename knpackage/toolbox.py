@@ -344,9 +344,9 @@ def run_net_nmf(run_parameters):
         writes table of sample names with cluster assignments.
     """
     adj_mat, spreadsheet, sample_names, lap_diag, lap_pos = get_netnmf_input(run_parameters)
-    sample_smooth, iterations = rwr(spreadsheet, adj_mat,
+    sample_smooth, iterations = perform_rwr_on_spreadsheet(spreadsheet, adj_mat,
                                     np.float64(run_parameters["restart_probability"]))
-    sample_quantile_norm = quantile_norm(sample_smooth)
+    sample_quantile_norm = get_quantile_norm(sample_smooth)
     h_mat = netnmf(sample_quantile_norm, lap_pos, lap_diag, np.int_(run_parameters["k"]))
 
     sp_size = spreadsheet.shape[1]
@@ -404,7 +404,7 @@ def run_nmf(run_parameters):
     """
     spreadsheet, sample_names = get_nmf_input(run_parameters)
 
-    #spreadsheet = quantile_norm(spreadsheet)
+    #spreadsheet = get_quantile_norm(spreadsheet)
 
     h_mat = nmf(spreadsheet, np.int_(run_parameters["k"]))
     # labels = np.argmax(h_mat, 0)
@@ -441,11 +441,11 @@ def form_and_save_h_clusters(adj_mat, spreadsheet, lap_dag, lap_val, run_paramet
     # ----------------------------------------------
     # Network based clustering loop and aggregation
     # ----------------------------------------------
-    tmp_dir = run_parameters["tmp_directory"]
+    #tmp_dir = run_parameters["tmp_directory"]
     for sample in range(0, np.int_(run_parameters["number_of_bootstraps"])):
-        sample_random, sample_permutation = get_spreadsheet_sample(spreadsheet,
+        sample_random, sample_permutation = sample_spreadsheet(spreadsheet,
                                             np.float64(run_parameters["percent_sample"]))
-        sample_smooth, iterations = rwr(sample_random, adj_mat,
+        sample_smooth, iterations = perform_rwr_on_spreadsheet(sample_random, adj_mat,
                                         np.float64(run_parameters["restart_probability"]))
         if int(run_parameters['verbose']) != 0:
             print("{} of {}: iterations = {}".format(
@@ -453,15 +453,26 @@ def form_and_save_h_clusters(adj_mat, spreadsheet, lap_dag, lap_val, run_paramet
                 run_parameters["number_of_bootstraps"],
                 iterations))
 
-        sample_quantile_norm = quantile_norm(sample_smooth)
+        sample_quantile_norm = get_quantile_norm(sample_smooth)
         h_mat = netnmf(sample_quantile_norm, lap_val, lap_dag, np.int_(run_parameters["k"]))
-        hname = os.path.join(tmp_dir, ('temp_h' + str(sample)))
-        h_mat.dump(hname)
-        pname = os.path.join(tmp_dir, ('temp_p' + str(sample)))
-        sample_permutation.dump(pname)
+        
+        save_cluster(h_mat, sample_permutation, run_parameters, sample)
+        #hname = os.path.join(tmp_dir, ('temp_h' + str(sample)))
+        #h_mat.dump(hname)
+        #pname = os.path.join(tmp_dir, ('temp_p' + str(sample)))
+        #sample_permutation.dump(pname)
 
     return
 
+def save_cluster(h_matrix, sample_permutation, run_parameters, sample_number):
+    
+    tmp_dir = run_parameters["tmp_directory"]
+    hname = os.path.join(tmp_dir, ('temp_h' + str(sample_number)))
+    h_matrix.dump(hname)
+    pname = os.path.join(tmp_dir, ('temp_p' + str(sample_number)))
+    sample_permutation.dump(pname)
+        
+    return
 
 def nmf_form_save_h_clusters(spreadsheet, run_parameters):
     """ Computes the components for the non-negative matric factorization
@@ -479,10 +490,10 @@ def nmf_form_save_h_clusters(spreadsheet, run_parameters):
     # ----------------------------------------------
     tmp_dir = run_parameters["tmp_directory"]
     for sample in range(0, np.int_(run_parameters["number_of_bootstraps"])):
-        sample_random, sample_permutation = get_spreadsheet_sample(spreadsheet,
+        sample_random, sample_permutation = sample_spreadsheet(spreadsheet,
                                                 np.float64(run_parameters["percent_sample"]))
                                                 
-        #sample_random = quantile_norm(sample_random)
+        #sample_random = get_quantile_norm(sample_random)
         
         h_mat = nmf(sample_random, np.int_(run_parameters["k"]))
         
@@ -575,7 +586,7 @@ def form_network_laplacian(adj_mat):
 
     return diagonal_laplacian, laplacian
 
-def get_spreadsheet_sample(spreadsheet, percent_sample):
+def sample_spreadsheet(spreadsheet, percent_sample):
     """ Select a (fraction x fraction)sample, from a spreadsheet
 
     Args:
@@ -604,7 +615,7 @@ def get_spreadsheet_sample(spreadsheet, percent_sample):
     return sample_random, sample_permutation
 
 
-def rwr(restart, network_sparse, alpha=0.7, max_iteration=100, tol=1.e-4):
+def perform_rwr_on_spreadsheet(restart, network_sparse, alpha=0.7, max_iteration=100, tol=1.e-4):
     """ Simulates a random walk with restarts.
 
     Args:
@@ -631,7 +642,7 @@ def rwr(restart, network_sparse, alpha=0.7, max_iteration=100, tol=1.e-4):
     return smooth_1, step
 
 
-def quantile_norm(sample):
+def get_quantile_norm(sample):
     """Normalizes an array using quantile normalization (ranking)
 
     Args:
