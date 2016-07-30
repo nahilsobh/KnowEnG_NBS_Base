@@ -46,8 +46,10 @@ def get_run_parameters(run_directory, run_file):
     """
     run_file_name = os.path.join(run_directory, run_file)
     par_set_df = pd.read_csv(run_file_name, sep='\t', header=None, index_col=0)
-    run_parameters = par_set_df.to_dict()[1]
-    run_parameters["run_directory"] = run_directory
+    
+    run_parameters = par_set_df.to_dict()[1]        # user specified run_parameters
+    run_parameters["run_directory"] = run_directory # system updated run_parameters
+
     return run_parameters
 
 def get_spreadsheet(run_parameters):
@@ -285,16 +287,16 @@ def save_cc_net_nmf_result(consensus_matrix, sample_names, labels, run_parameter
     Returns: (nothing)
     """
     if int(run_parameters["use_now_name"]) != 0:
-        file_name = os.path.join(run_parameters["run_directory"], now_name('consensus_data', 'df'))
+        file_name = os.path.join(run_parameters["results_directory"], now_name('consensus_data', 'df'))
     else:
-        file_name = os.path.join(run_parameters["run_directory"], 'consensus_data.df')
+        file_name = os.path.join(run_parameters["results_directory"], 'consensus_data.df')
     out_df = pd.DataFrame(data=consensus_matrix, columns=sample_names, index=labels)
     out_df.to_csv(file_name, sep='\t')
     
     if int(run_parameters["use_now_name"]) != 0:
-        file_name = os.path.join(run_parameters["run_directory"], now_name('labels_data', 'tsv'))
+        file_name = os.path.join(run_parameters["results_directory"], now_name('labels_data', 'tsv'))
     else:
-        file_name = os.path.join(run_parameters["run_directory"], 'labels_data.tsv')
+        file_name = os.path.join(run_parameters["results_directory"], 'labels_data.tsv')
 
     df_tmp = map_cluster_elements_to_spreadsheet_names(sample_names, labels)
     df_tmp.to_csv(file_name, sep='\t', header=None)
@@ -383,12 +385,7 @@ def run_nmf(run_parameters):
         writes table of sample names with cluster assignments.
     """
     spreadsheet, sample_names = get_nmf_input(run_parameters)
-
-    #spreadsheet = get_quantile_norm(spreadsheet)
-
     h_mat = nmf(spreadsheet, np.int_(run_parameters["k"]))
-    # labels = np.argmax(h_mat, 0)
-
     sp_size = spreadsheet.shape[1]
     connectivity_matrix = np.zeros((sp_size, sp_size))
     sample_perm = np.arange(0, sp_size)
@@ -905,9 +902,9 @@ def write_consensus_matrix(consensus_matrix, columns, labels, run_parameters):
         nothing - just writes the file
     """
     if int(run_parameters["use_now_name"]) != 0:
-        file_name = os.path.join(run_parameters["run_directory"], now_name('consensus_data', 'df'))
+        file_name = os.path.join(run_parameters["results_directory"], now_name('consensus_data', 'df'))
     else:
-        file_name = os.path.join(run_parameters["run_directory"], 'consensus_data.df')
+        file_name = os.path.join(run_parameters["results_directory"], 'consensus_data.df')
     out_df = pd.DataFrame(data=consensus_matrix, columns=columns, index=labels)
     out_df.to_csv(file_name, sep='\t')
 
@@ -925,9 +922,9 @@ def write_sample_labels(columns, labels, run_parameters):
         nothing - writes the file
     """
     if int(run_parameters["use_now_name"]) != 0:
-        file_name = os.path.join(run_parameters["run_directory"], now_name('labels_data', 'tsv'))
+        file_name = os.path.join(run_parameters["results_directory"], now_name('labels_data', 'tsv'))
     else:
-        file_name = os.path.join(run_parameters["run_directory"], 'labels_data.tsv')
+        file_name = os.path.join(run_parameters["results_directory"], 'labels_data.tsv')
 
     df_tmp = pd.DataFrame(data=labels, index=columns)
     df_tmp.to_csv(file_name, sep='\t', header=None)
@@ -949,52 +946,3 @@ def now_name(name_base, name_extension, delta_time=1e6):
     time_stamped_file_name = name_base + '_' + nstr + '.' + name_extension
 
     return time_stamped_file_name
-
-def run_parameters_dict():
-    """ Dictionary of parameter field names with default values.
-
-    Args: None
-
-    Returns:
-        run_parameters: a python dictionay of default parameters needed to run the
-            functions in this module. Write to text file:
-        par_dataframe = pd.DataFrame.from_dict(run_parameters, orient='index')
-        par_dataframe.to_csv(file_name, sep='\t')
-    """
-    run_parameters = {
-        "method":"cc_net_nmf",
-        "k":4,
-        "number_of_bootstraps":5,
-        "percent_sample":0.8,
-        "restart_probability":0.7,
-        "number_of_iterations":100,
-        "tolerance":1e-4,
-        "network_threshold":1.0,
-        "network_etype":"None",
-        "network_taxon":"None",
-        "property_etype":"None",
-        "property_taxon":"None",        
-        "network_file_name":"network_file_name",
-        "samples_file_name":"samples_file_name",
-        "tmp_directory":"tmp",
-        "run_directory":"run_directory",
-        "use_now_name":1,
-        "verbose":1,
-        "display_clusters":1}
-
-    return run_parameters
-
-def generate_run_file(file_name='run_file'):
-    """ Write a defaut parameters set to a text file for editing
-
-    Args:
-        file_name: file name with extension (will be written as plain text).
-
-    Returns:
-        no variables, writes a default parameters dictionary file.
-
-    """
-    par_dataframe = pd.DataFrame.from_dict(run_parameters_dict(), orient='index')
-    par_dataframe.to_csv(file_name, sep='\t', header=False)
-
-    return
