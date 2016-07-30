@@ -6,16 +6,16 @@ Created on Tue Jun 28 14:39:35 2016
 @author: Sobh
 """
 
-from numpy import maximum
 from sklearn.cluster import KMeans
+from numpy import maximum
 
-import time
-import numpy as np
+import matplotlib.pyplot as plt
+import scipy.sparse as spar
 import numpy.linalg as LA
 import pandas as pd
-import scipy.sparse as spar
-import matplotlib.pyplot as plt
+import numpy as np
 import argparse
+import time
 import os
 
 def get_run_directory(args):
