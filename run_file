@@ -2,7 +2,7 @@ number_of_bootstraps	5
 k	4
 network_threshold	1.0
 network_taxon	None
-network_file_name	final_clean_4col.edge
+network_file_name	input_data/final_clean_4col.edge
 percent_sample	0.8
 number_of_iterations	100
 tolerance	0.0001
@@ -12,7 +12,7 @@ method3	net_nmf
 method4	cc_net_nmf
 use_now_name	0
 restart_probability	0.7
-samples_file_name	final_clean_full_matrix.df
+samples_file_name	input_data/final_clean_full_matrix.df
 display_clusters	1
 property_taxon	None
 property_etype	None
