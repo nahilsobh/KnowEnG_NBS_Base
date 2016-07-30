@@ -159,10 +159,6 @@ def map_network_names(network_df, genes_lookup_table):
     
     return network_df
     
-# ----------------------------------------------
-#   Begin: Read and Prepare Input.
-# ----------------------------------------------
-
 def df_to_nw_ss(network_df, spreadsheet_df):
     """ convert pandas dataframe representations into data set
 
@@ -239,13 +235,6 @@ def get_nmf_input(run_parameters):
     sample_names = ss_df.columns
 
     return spreadsheet, sample_names
-
-# ----------------------------------------------
-#   End: Read and Prepare Input.
-#
-#
-#   Begin: Function Sequence Wrappers.
-# ----------------------------------------------
 
 def run_cc_net_nmf(run_parameters):
     """ Wrapper for call sequence that performs network based stratification
@@ -499,13 +488,6 @@ def form_consensus_matrix(run_parameters, connectivity_matrix, indicator_matrix)
     consensus_matrix = connectivity_matrix / np.maximum(indicator_matrix, 1)
 
     return consensus_matrix
-
-# ----------------------------------------------
-#   End: Function Sequence Wrappers.
-#
-#
-#   Begin: Core Functions.
-# ----------------------------------------------
 
 def normalized_matrix(adj_mat):
     """ normalize symmetrix matrix s.t. the norm of the whole matrix is near one
@@ -814,13 +796,6 @@ def cluster_consensus_matrix(consensus_matrix, k=3):
     labels = cluster_handle.fit_predict(consensus_matrix)
 
     return labels
-
-# ----------------------------------------------
-#   End: Core Functions.
-#
-#
-#   Begin: Runtime Utility.
-# ----------------------------------------------
 
 def reorder_matrix(consensus_matrix, k=3):
     '''Performs K-means and use its labels to reorder the consensus matrix
