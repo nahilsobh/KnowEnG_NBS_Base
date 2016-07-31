@@ -2,8 +2,8 @@
 """
 Created on Wed Jul 20 14:47:45 2016
 
-@author: Lanier
-@author: Sobh
+@author: The Gene Sets Characterization dev team
+
 """
 
 def nmf(run_parameters):
@@ -27,10 +27,10 @@ def cc_net_nmf(run_parameters):
     run_cc_net_nmf(run_parameters)
 
 SELECT = {
-    "nmf":nmf,
-    "cc_nmf":cc_nmf,
-    "net_nmf":net_nmf,
-    "cc_net_nmf":cc_net_nmf}
+    "cluster":nmf,
+    "cc_cluster":cc_nmf,
+    "net_cluster":net_nmf,
+    "cc_net_cluster":cc_net_nmf}
 
 
 def main():
@@ -39,8 +39,7 @@ def main():
     from knpackage.toolbox import get_run_parameters
     
     run_directory = get_run_directory(sys.argv)
-    run_file = "run_file"
-    run_parameters = get_run_parameters(run_directory, run_file)
+    run_parameters = get_run_parameters(run_directory)
     SELECT[run_parameters["method"]](run_parameters)
 
 if __name__ == "__main__":
