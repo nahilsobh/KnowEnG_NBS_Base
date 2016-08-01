@@ -327,7 +327,7 @@ def save_cc_net_nmf_result(consensus_matrix, sample_names, labels, run_parameter
         consensus_matrix: sample_names X labels symmetric consensus matrix
         sample_names: spreadsheet column names
         labels: cluster assignments for column names or consensus matrix
-        run_parameters: python dictionary with "run_directory"
+        run_parameters: python dictionary with "results_directory"
     """
     write_consensus_matrix(consensus_matrix, sample_names, labels, run_parameters)
     save_clusters(sample_names, labels, run_parameters)
@@ -356,10 +356,9 @@ def run_net_nmf(run_parameters):
         run_parameters: parameter set dictionary
     """
     adj_mat, spreadsheet, sample_names, lap_diag, lap_pos = get_net_nmf_input(run_parameters)
-    sample_smooth, iterations = smooth_spreadsheet_with_rwr(spreadsheet, adj_mat,
-                                    np.float64(run_parameters["restart_probability"]))
+    sample_smooth, iterations = smooth_spreadsheet_with_rwr(spreadsheet, adj_mat, run_parameters)
     sample_quantile_norm = get_quantile_norm(sample_smooth)
-    h_mat = perform_net_nmf(sample_quantile_norm, lap_pos, lap_diag, np.int_(run_parameters["k"]))
+    h_mat = perform_net_nmf(sample_quantile_norm, lap_pos, lap_diag, run_parameters)
 
     sp_size = spreadsheet.shape[1]
     linkage_matrix = np.zeros((sp_size, sp_size))
@@ -404,7 +403,7 @@ def run_nmf(run_parameters):
         run_parameters: parameter set dictionary
     """
     spreadsheet, sample_names = get_nmf_input(run_parameters)
-    h_mat = nmf(spreadsheet, np.int_(run_parameters["k"]))
+    h_mat = nmf(spreadsheet, run_parameters)
     sp_size = spreadsheet.shape[1]
     linkage_matrix = np.zeros((sp_size, sp_size))
     sample_perm = np.arange(0, sp_size)
@@ -432,8 +431,7 @@ def form_and_save_h_clusters(adj_mat, spreadsheet, lap_dag, lap_val, run_paramet
         sample_random, sample_permutation = pick_a_sample(spreadsheet,
                                             np.float64(run_parameters["percent_sample"]))
         sample_smooth, iterations = \
-        smooth_spreadsheet_with_rwr(sample_random, adj_mat,
-                                    np.float64(run_parameters["restart_probability"]))
+        smooth_spreadsheet_with_rwr(sample_random, adj_mat, run_parameters)
 
         if int(run_parameters['verbose']) != 0:
             print("{} of {}: iterations = {}".format(
@@ -442,8 +440,7 @@ def form_and_save_h_clusters(adj_mat, spreadsheet, lap_dag, lap_val, run_paramet
                 iterations))
 
         sample_quantile_norm = get_quantile_norm(sample_smooth)
-        h_mat = perform_net_nmf(sample_quantile_norm, lap_val, lap_dag,
-                                np.int_(run_parameters["k"]))
+        h_mat = perform_net_nmf(sample_quantile_norm, lap_val, lap_dag, run_parameters)
 
         save_temporary_cluster(h_mat, sample_permutation, run_parameters, sample)
 
@@ -478,7 +475,7 @@ def nmf_form_save_h_clusters(spreadsheet, run_parameters):
         sample_random, sample_permutation = pick_a_sample(spreadsheet,
                                                 np.float64(run_parameters["percent_sample"]))
 
-        h_mat = nmf(sample_random, np.int_(run_parameters["k"]))
+        h_mat = nmf(sample_random, run_parameters)
         save_temporary_cluster(h_mat, sample_permutation, run_parameters, sample)
 
         if int(run_parameters['verbose']) != 0:
@@ -628,24 +625,27 @@ def pick_a_sample(spreadsheet, percent_sample):
 
     return sample_random, sample_permutation
 
-def smooth_spreadsheet_with_rwr(restart, network_sparse, alpha=0.7, max_iteration=100, tol=1.e-4):
+def smooth_spreadsheet_with_rwr(restart, network_sparse, run_parameters):
     """ Simulates a random walk with restarts.
-
+                                        alpha=0.7, max_iteration=100, tol=1.e-4
     Args:
         restart: restart array of any size.
         network_sparse: adjancy matrix stored in sparse format.
-        alpha: restart probability. (default = 0.7)
+        run_parameters: parameters dictionary with alpha, restart_tolerance, 
+            number_of_iteriations_in_rwr and
+
         max_iteration: maximum number of random walap_vals. (default = 100)
         tol: convergence tolerance. (default = 1.e-4)
-        report_frequency: frequency of convergance checks. (default = 5)
 
     Returns:
         smooth_1: smoothed restart data.
         step: number of iterations used
     """
+    tol = np.float_(run_parameters["restart_tolerance"])
+    alpha = np.float_(run_parameters["restart_probability"])
     smooth_0 = restart
     smooth_r = (1. - alpha) * restart
-    for step in range(0, max_iteration):
+    for step in range(0, np.int_(run_parameters["number_of_iteriations_in_rwr"])):
         smooth_1 = alpha * network_sparse.dot(smooth_0) + smooth_r
         deltav = LA.norm(smooth_1 - smooth_0, 'fro')
         if deltav < tol:
@@ -723,15 +723,17 @@ def get_h(w_matrix, x_matrix):
             break
     return h_matrix
 
-def perform_net_nmf(x_matrix, lap_val, lap_dag, k=3, lmbda=1400, it_max=10000,
-                    h_clust_eq_limit=200, obj_fcn_chk_freq=50):
+def perform_net_nmf(x_matrix, lap_val, lap_dag, run_parameters):
     """Performs network based nonnegative matrix factorization that
     minimizes( ||X-WH|| + lambda.tr(W'.L.W)
-
+        k=3, lmbda=1400, it_max=10000, h_clust_eq_limit=200, obj_fcn_chk_freq=50
     Args:
         x_matrix: the postive matrix (X) to be decomposed into W.H
         lap_val: the laplacian matrix
         lap_dag: the diagonal of the laplacian matrix
+        run_parameters: parameters dictionary with k, lambda, it_mat, 
+                cluster_min_repeats, obj_fcn_chk_freq
+                
         k: number of clusters
         lmbda: penalty numnber (default = 100)
         it_max: maximim objective function iterations (default = 10000)
@@ -742,13 +744,17 @@ def perform_net_nmf(x_matrix, lap_val, lap_dag, k=3, lmbda=1400, it_max=10000,
         h_matrix: nonnegative right factor (H)
         itr: number of iterations completed
     """
+    k = float(run_parameters["k"])
+    lmbda = float(run_parameters["lmbda"])
+    obj_fcn_chk_freq = int(run_parameters["obj_fcn_chk_freq"])
+    h_clust_eq_limit = float(run_parameters["h_clust_eq_limit"])
     epsilon = 1e-15
     w_matrix = np.random.rand(x_matrix.shape[0], k)
     w_matrix = maximum(w_matrix / maximum(sum(w_matrix), epsilon), epsilon)
     h_matrix = np.random.rand(k, x_matrix.shape[1])
     h_clust_eq = np.argmax(h_matrix, 0)
     h_eq_count = 0
-    for itr in range(0, it_max):
+    for itr in range(0, int(run_parameters["it_max"])):
         if np.mod(itr, obj_fcn_chk_freq) == 0:
             h_clusters = np.argmax(h_matrix, 0)
             if (itr > 0) & (sum(h_clust_eq != h_clusters) == 0):
@@ -767,11 +773,13 @@ def perform_net_nmf(x_matrix, lap_val, lap_dag, k=3, lmbda=1400, it_max=10000,
 
     return h_matrix
 
-def nmf(x_matrix, k=3, it_max=10000, h_clust_eq_limit=200, obj_fcn_chk_freq=50):
+def nmf(x_matrix, run_parameters):
     """Performs nonnegative matrix factorization that minimizes ||X-WH||
-
+        k=3, it_max=10000, h_clust_eq_limit=200, obj_fcn_chk_freq=50
     Args:
         x_matrix: the postive matrix (X) to be decomposed into W.H
+        run_parameters: parameters dictionary with k, it_max, cluster_min_repeats, obj_fcn_chk_freq
+        
         k: number of clusters
         it_max: maximim objective function iterations (default = 10000)
         h_clust_eq_limit: h_matrix no change objective (default = 200)
@@ -780,13 +788,16 @@ def nmf(x_matrix, k=3, it_max=10000, h_clust_eq_limit=200, obj_fcn_chk_freq=50):
     Returns:
         h_matrix: nonnegative right factor (H)
     """
+    k = float(run_parameters["k"])
+    obj_fcn_chk_freq = int(run_parameters["obj_fcn_chk_freq"])
+    h_clust_eq_limit = float(run_parameters["h_clust_eq_limit"])
     epsilon = 1e-15
     w_matrix = np.random.rand(x_matrix.shape[0], k)
     w_matrix = maximum(w_matrix / maximum(sum(w_matrix), epsilon), epsilon)
     h_matrix = np.random.rand(k, x_matrix.shape[1])
     h_clust_eq = np.argmax(h_matrix, 0)
     h_eq_count = 0
-    for itr in range(0, it_max):
+    for itr in range(0, int(run_parameters["it_max"])):
         if np.mod(itr, obj_fcn_chk_freq) == 0:
             h_clusters = np.argmax(h_matrix, 0)
             if (itr > 0) & (sum(h_clust_eq != h_clusters) == 0):
@@ -951,9 +962,9 @@ def write_consensus_matrix(consensus_matrix, columns, labels, run_parameters):
         run_parameters: contains directory path to write to consensus_data file
     """
     if int(run_parameters["use_now_name"]) != 0:
-        file_name = os.path.join(run_parameters["run_directory"], now_name('consensus_data', 'df'))
+        file_name = os.path.join(run_parameters["results_directory"], now_name('consensus_data', 'df'))
     else:
-        file_name = os.path.join(run_parameters["run_directory"], 'consensus_data.df')
+        file_name = os.path.join(run_parameters["results_directory"], 'consensus_data.df')
     out_df = pd.DataFrame(data=consensus_matrix, columns=columns, index=labels)
     out_df.to_csv(file_name, sep='\t')
 
@@ -968,9 +979,9 @@ def save_clusters(sample_names, labels, run_parameters):
         file_name: write path and file name
     """
     if int(run_parameters["use_now_name"]) != 0:
-        file_name = os.path.join(run_parameters["run_directory"], now_name('labels_data', 'tsv'))
+        file_name = os.path.join(run_parameters["results_directory"], now_name('labels_data', 'tsv'))
     else:
-        file_name = os.path.join(run_parameters["run_directory"], 'labels_data.tsv')
+        file_name = os.path.join(run_parameters["results_directory"], 'labels_data.tsv')
 
     df_tmp = pd.DataFrame(data=labels, index=sample_names)
     df_tmp.to_csv(file_name, sep='\t', header=None)
@@ -1004,17 +1015,21 @@ def run_parameters_dict():
             functions in this module.
     """
     run_parameters = {
-        "method":"cc_net_nmf",
+        "method":"cc_net_cluster",
         "k":4,
         "number_of_bootstraps":5,
         "percent_sample":0.8,
         "restart_probability":0.7,
-        "number_of_iterations":100,
-        "tolerance":1e-4,
+        "number_of_iteriations_in_rwr":100,
+        "it_max":10000,
+        "h_clust_eq_limit":200,
+        "obj_fcn_chk_freq":50,
+        "restart_tolerance":1e-4,
+        'lmbda':1400,
         "network_file_name":"network_file_name",
         "samples_file_name":"samples_file_name",
         "tmp_directory":"tmp",
-        "run_directory":"run_directory",
+        "results_directory":"results",
         "use_now_name":1,
         "verbose":1,
         "display_clusters":1}
