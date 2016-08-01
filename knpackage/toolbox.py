@@ -177,7 +177,7 @@ def update_network(network, common_genes, node_id):
     
     return updated_network
 
-def create_genes_lookup_table(unique_gene_names):
+def create_node_names_dictionary(unique_gene_names, start_value=0):
     """ create a python dictionary to look up gene locations from gene names
 
     Args:
@@ -186,7 +186,9 @@ def create_genes_lookup_table(unique_gene_names):
     Returns:
         genes_lookup_table: python dictionary of gene names to integer locations
     """
-    genes_lookup_table = dict(zip(unique_gene_names, range(len(unique_gene_names))))
+    index_length = len(unique_gene_names)
+    genes_lookup_table = dict(zip(unique_gene_names, np.arange(start_value, index_length)))    
+    #genes_lookup_table = dict(zip(unique_gene_names, range(len(unique_gene_names))))
 
     return genes_lookup_table
 
@@ -263,7 +265,7 @@ def get_net_nmf_input(run_parameters):
     spreadsheet_df = get_spreadsheet(run_parameters)
 
     unique_gene_names = find_unique_gene_names(network_df)
-    genes_lookup_table = create_genes_lookup_table(unique_gene_names)
+    genes_lookup_table = create_node_names_dictionary(unique_gene_names)
     network_df = map_network_names(network_df, genes_lookup_table)
     network_df = symmetrize_df(network_df)
     adj_mat = convert_df_to_sparse(network_df, len(unique_gene_names))
