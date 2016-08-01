@@ -246,8 +246,8 @@ def get_net_nmf_input(run_parameters):
         run_parameters: parameter set structure of pytyon dictionary type
 
     Returns:
-        adj_mat: adjacency matrix
-        spreadsheet: genes x samples input data matrix shaped to adj_mat
+        network_mat: adjacency matrix
+        spreadsheet: genes x samples input data matrix shaped to network_mat
         sample_names: column names of spreadsheet data
         lap_diag: diagonal component of laplacian matrix
         lap_pos: positional component of laplacian matrix
@@ -263,19 +263,19 @@ def get_net_nmf_input(run_parameters):
     network_df = map_node_names_to_index(network_df, genes_lookup_table, 'node_2')
     
     network_df = symmetrize_df(network_df)
-    adj_mat = convert_df_to_sparse(network_df, len(unique_gene_names))
+    network_mat = convert_df_to_sparse(network_df, len(unique_gene_names))
 
-    adj_mat = normalized_matrix(adj_mat)
-    lap_diag, lap_pos = form_network_laplacian(adj_mat)
+    network_mat = normalized_matrix(network_mat)
+    lap_diag, lap_pos = form_network_laplacian(network_mat)
 
     spreadsheet_df = update_spreadsheet(spreadsheet_df, unique_gene_names)
-    spreadsheet = spreadsheet_df.as_matrix()
+    spreadsheet_mat = spreadsheet_df.as_matrix()
     sample_names = spreadsheet_df.columns
 
     if int(run_parameters['verbose']) != 0:
-        echo_input(adj_mat, spreadsheet, run_parameters)
+        echo_input(network_mat, spreadsheet_mat, run_parameters)
 
-    return adj_mat, spreadsheet, sample_names, lap_diag, lap_pos
+    return network_mat, spreadsheet_mat, sample_names, lap_diag, lap_pos
 
 def get_nmf_input(run_parameters):
     """ get input arguments for non-negative matrix factroization.
@@ -284,17 +284,17 @@ def get_nmf_input(run_parameters):
         run_parameters: parameter set structure of pytyon dictionary type
 
     Returns:
-        spreadsheet: genes x samples input data matrix shaped to adj_mat
+        spreadsheet_mat: genes x samples input data matrix
         sample_names: column names of spreadsheet data
     """
     ss_df = get_spreadsheet(run_parameters)
-    spreadsheet = ss_df.as_matrix()
-    spreadsheet = get_quantile_norm(spreadsheet)
+    spreadsheet_mat = ss_df.as_matrix()
+    spreadsheet_mat = get_quantile_norm(spreadsheet_mat)
     if int(run_parameters['verbose']) != 0:
-        echo_input(np.zeros((1, 1)), spreadsheet, run_parameters)
+        echo_input(np.zeros((1, 1)), spreadsheet_mat, run_parameters)
     sample_names = ss_df.columns
 
-    return spreadsheet, sample_names
+    return spreadsheet_mat, sample_names
 
 def save_cc_net_nmf_result(consensus_matrix, sample_names, labels, run_parameters):
     """ write the results of consensus clustering network based nmt to output files
@@ -331,9 +331,9 @@ def run_nmf(run_parameters):
     Args:
         run_parameters: parameter set dictionary
     """
-    spreadsheet, sample_names = get_nmf_input(run_parameters)
-    h_mat = nmf(spreadsheet, run_parameters)
-    sp_size = spreadsheet.shape[1]
+    spreadsheet_mat, sample_names = get_nmf_input(run_parameters)
+    h_mat = nmf(spreadsheet_mat, run_parameters)
+    sp_size = spreadsheet_mat.shape[1]
     linkage_matrix = np.zeros((sp_size, sp_size))
     sample_perm = np.arange(0, sp_size)
     linkage_matrix = update_linkage_matrix(h_mat, sample_perm, linkage_matrix)
@@ -353,9 +353,9 @@ def run_cc_nmf(run_parameters):
     Args:
         run_parameters: parameter set dictionary
     """
-    spreadsheet, sample_names = get_nmf_input(run_parameters)
-    nmf_form_save_h_clusters(spreadsheet, run_parameters)
-    linkage_matrix, indicator_matrix = initialization(spreadsheet)
+    spreadsheet_mat, sample_names = get_nmf_input(run_parameters)
+    nmf_form_save_h_clusters(spreadsheet_mat, run_parameters)
+    linkage_matrix, indicator_matrix = initialization(spreadsheet_mat)
     consensus_matrix = form_consensus_matrix(
         run_parameters, linkage_matrix, indicator_matrix)
     labels = cluster_consensus_matrix(consensus_matrix, int(run_parameters['k']))
@@ -374,12 +374,12 @@ def run_net_nmf(run_parameters):
     Args:
         run_parameters: parameter set dictionary
     """
-    adj_mat, spreadsheet, sample_names, lap_diag, lap_pos = get_net_nmf_input(run_parameters)
-    sample_smooth, iterations = smooth_spreadsheet_with_rwr(spreadsheet, adj_mat, run_parameters)
+    network_mat, spreadsheet_mat, sample_names, lap_diag, lap_pos = get_net_nmf_input(run_parameters)
+    sample_smooth, iterations = smooth_spreadsheet_with_rwr(spreadsheet_mat, network_mat, run_parameters)
     sample_quantile_norm = get_quantile_norm(sample_smooth)
     h_mat = perform_net_nmf(sample_quantile_norm, lap_pos, lap_diag, run_parameters)
 
-    sp_size = spreadsheet.shape[1]
+    sp_size = spreadsheet_mat.shape[1]
     linkage_matrix = np.zeros((sp_size, sp_size))
     sample_perm = np.arange(0, sp_size)
     linkage_matrix = update_linkage_matrix(h_mat, sample_perm, linkage_matrix)
@@ -400,11 +400,11 @@ def run_cc_net_nmf(run_parameters):
     Args:
         run_parameters: parameter set dictionary
     """
-    adj_mat, spreadsheet, sample_names, lap_diag, lap_pos = get_net_nmf_input(run_parameters)
+    network_mat, spreadsheet_mat, sample_names, lap_diag, lap_pos = get_net_nmf_input(run_parameters)
 
-    form_and_save_h_clusters(adj_mat, spreadsheet, lap_diag, lap_pos, run_parameters)
+    form_and_save_h_clusters(network_mat, spreadsheet_mat, lap_diag, lap_pos, run_parameters)
 
-    linkage_matrix, indicator_matrix = initialization(spreadsheet)
+    linkage_matrix, indicator_matrix = initialization(spreadsheet_mat)
     consensus_matrix = form_consensus_matrix(
         run_parameters, linkage_matrix, indicator_matrix)
     labels = cluster_consensus_matrix(consensus_matrix, int(run_parameters['k']))
@@ -417,21 +417,21 @@ def run_cc_net_nmf(run_parameters):
 
     return
 
-def form_and_save_h_clusters(adj_mat, spreadsheet, lap_dag, lap_val, run_parameters):
-    """ Computes the components for the consensus matrix from the input network and spreadsheet
+def form_and_save_h_clusters(network_mat, spreadsheet_mat, lap_dag, lap_val, run_parameters):
+    """ Computes the components for the consensus matrix from the input network and spreadsheet_mat
         for network based stratification
 
     Args:
-        adj_mat: genes x genes symmetric adjacency matrix
-        spreadsheet: genes x samples matrix
+        network_mat: genes x genes symmetric adjacency matrix
+        spreadsheet_mat: genes x samples matrix
         lap_dag, lap_val: laplacian matrix components i.e. L = lap_dag - lap_val
         run_parameters: dictionay of run-time parameters
     """
     for sample in range(0, np.int_(run_parameters["number_of_bootstraps"])):
-        sample_random, sample_permutation = pick_a_sample(spreadsheet,
+        sample_random, sample_permutation = pick_a_sample(spreadsheet_mat,
                                             np.float64(run_parameters["percent_sample"]))
         sample_smooth, iterations = \
-        smooth_spreadsheet_with_rwr(sample_random, adj_mat, run_parameters)
+        smooth_spreadsheet_with_rwr(sample_random, network_mat, run_parameters)
 
         if int(run_parameters['verbose']) != 0:
             print("{} of {}: iterations = {}".format(
@@ -463,16 +463,16 @@ def save_temporary_cluster(h_matrix, sample_permutation, run_parameters, sequenc
 
     return
 
-def nmf_form_save_h_clusters(spreadsheet, run_parameters):
+def nmf_form_save_h_clusters(spreadsheet_mat, run_parameters):
     """ Computes the components for the non-negative matric factorization
-        consensus matrix from the input spreadsheet.
+        consensus matrix from the input spreadsheet_mat.
 
     Args:
-        spreadsheet: genes x samples matrix
+        spreadsheet_mat: genes x samples matrix
         run_parameters: dictionay of run-time parameters
     """
     for sample in range(0, np.int_(run_parameters["number_of_bootstraps"])):
-        sample_random, sample_permutation = pick_a_sample(spreadsheet,
+        sample_random, sample_permutation = pick_a_sample(spreadsheet_mat,
                                                 np.float64(run_parameters["percent_sample"]))
 
         h_mat = nmf(sample_random, run_parameters)
@@ -556,67 +556,67 @@ def form_consensus_matrix(run_parameters, linkage_matrix, indicator_matrix):
 
     return consensus_matrix
 
-def normalized_matrix(adj_mat):
+def normalized_matrix(network_mat):
     """ normalize symmetrix matrix s.t. the norm of the whole matrix is near one
 
     Args:
-        adj_mat: symmetric adjacency matrix
+        network_mat: symmetric adjacency matrix
 
     Returns:
-        adj_mat: input matrix - renomralized
+        network_mat: input matrix - renomralized
     """
-    row_sm = np.array(adj_mat.sum(axis=0))
+    row_sm = np.array(network_mat.sum(axis=0))
     row_sm = 1.0 / row_sm
     row_sm = np.sqrt(row_sm)
-    r_c = np.arange(0, adj_mat.shape[0])
-    diag_mat = spar.csr_matrix((row_sm[0, :], (r_c, r_c)), shape=(adj_mat.shape))
-    adj_mat = diag_mat.dot(adj_mat)
-    adj_mat = adj_mat.dot(diag_mat)
+    r_c = np.arange(0, network_mat.shape[0])
+    diag_mat = spar.csr_matrix((row_sm[0, :], (r_c, r_c)), shape=(network_mat.shape))
+    network_mat = diag_mat.dot(network_mat)
+    network_mat = network_mat.dot(diag_mat)
 
-    return adj_mat
+    return network_mat
 
-def form_network_laplacian(adj_mat):
+def form_network_laplacian(network_mat):
     """Forms the laplacian matrix components for use in network based stratification.
 
     Args:
-        adj_mat: adjancy matrix.
+        network_mat: adjancy matrix.
 
     Returns:
         diagonal_laplacian: the diagonal of the laplacian matrix.
         laplacian: the laplacian matrix.
     """
-    laplacian = spar.lil_matrix(adj_mat.copy())
+    laplacian = spar.lil_matrix(network_mat.copy())
     laplacian.setdiag(0)
     laplacian[laplacian != 0] = 1
     diag_length = laplacian.shape[0]
     rowsum = np.array(laplacian.sum(axis=0))
     diag_arr = np.arange(0, diag_length)
     diagonal_laplacian = spar.csr_matrix((rowsum[0, :], (diag_arr, diag_arr)),
-                                         shape=(adj_mat.shape))
+                                         shape=(network_mat.shape))
     laplacian = laplacian.tocsr()
 
     return diagonal_laplacian, laplacian
 
-def pick_a_sample(spreadsheet, percent_sample):
-    """ Select a (fraction x fraction)sample, from a spreadsheet
+def pick_a_sample(spreadsheet_mat, percent_sample):
+    """ Select a (fraction x fraction)sample, from a spreadsheet_mat
 
     Args:
-        spreadsheet: (adj_mat) gene x sample spread sheet.
+        spreadsheet_mat: (network_mat) gene x sample spread sheet.
         percent_sample: selection "percentage" - [0 : 1]
 
     Returns:
         sample_random: A specified precentage sample of the spread sheet.
         sample_permutation: the array that correponds to random sample.
     """
-    features_size = np.int_(np.round(spreadsheet.shape[0] * (1-percent_sample)))
-    features_permutation = np.random.permutation(spreadsheet.shape[0])
+    features_size = np.int_(np.round(spreadsheet_mat.shape[0] * (1-percent_sample)))
+    features_permutation = np.random.permutation(spreadsheet_mat.shape[0])
     features_permutation = features_permutation[0:features_size].T
 
-    patients_size = np.int_(np.round(spreadsheet.shape[1] * percent_sample))
-    sample_permutation = np.random.permutation(spreadsheet.shape[1])
+    patients_size = np.int_(np.round(spreadsheet_mat.shape[1] * percent_sample))
+    sample_permutation = np.random.permutation(spreadsheet_mat.shape[1])
     sample_permutation = sample_permutation[0:patients_size]
 
-    sample_random = spreadsheet[:, sample_permutation]
+    sample_random = spreadsheet_mat[:, sample_permutation]
     sample_random[features_permutation[:, None], :] = 0
 
     positive_col_set = sum(sample_random) > 0
@@ -815,17 +815,17 @@ def nmf(x_matrix, run_parameters):
 
     return h_matrix
 
-def initialization(spreadsheet):
+def initialization(spreadsheet_mat):
     ''' Initializes connectivity and indicator matrices.
 
     Args:
-         spreadsheet: user's data
+         spreadsheet_mat: user's data
 
     Returns:
         linkage_matrix: samples x samples matrix of zeros
         indicator_matrix: samples x samples matrix of zeros
     '''
-    sp_size = spreadsheet.shape[1]
+    sp_size = spreadsheet_mat.shape[1]
     linkage_matrix = np.zeros((sp_size, sp_size))
     indicator_matrix = np.zeros((sp_size, sp_size))
 
@@ -895,18 +895,18 @@ def form_consensus_matrix_graphic(consensus_matrix, k=3):
 
     return cc_cm
 
-def echo_input(network, spreadsheet, run_parameters):
-    ''' prints User's spread sheet and network data Dimensions and sizes
+def echo_input(network_mat, spreadsheet_mat, run_parameters):
+    ''' prints User's spread sheet and network_mat data Dimensions and sizes
 
     Args:
-         network: full gene-gene network
-         spreadsheet: user's genes x samples data
+         network_mat: full gene-gene network
+         spreadsheet_mat: user's genes x samples data
          run_parameters: run parameters dictionary
     '''
-    net_rows = network.shape[0]
-    net_cols = network.shape[1]
-    usr_rows = spreadsheet.shape[0]
-    usr_cols = spreadsheet.shape[1]
+    net_rows = network_mat.shape[0]
+    net_cols = network_mat.shape[1]
+    usr_rows = spreadsheet_mat.shape[0]
+    usr_cols = spreadsheet_mat.shape[1]
     print('\nMethod: {}'.format(run_parameters['method']))
     date_frm = "Local: %a, %d %b %Y %H:%M:%S"
     print('Data Loaded:\t{}'.format(time.strftime(date_frm, time.localtime())))
