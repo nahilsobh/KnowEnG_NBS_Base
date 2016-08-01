@@ -184,13 +184,12 @@ def create_node_names_dictionary(unique_gene_names, start_value=0):
         unique_gene_names: python list of gene names
 
     Returns:
-        genes_lookup_table: python dictionary of gene names to integer locations
+        node_names_dictionary: python dictionary of gene names to integer locations
     """
     index_length = len(unique_gene_names)
-    genes_lookup_table = dict(zip(unique_gene_names, np.arange(start_value, index_length)))    
-    #genes_lookup_table = dict(zip(unique_gene_names, range(len(unique_gene_names))))
+    node_names_dictionary = dict(zip(unique_gene_names, np.arange(start_value, index_length)))    
 
-    return genes_lookup_table
+    return node_names_dictionary
 
 def symmetrize_df(network_df):
     """ create matrix symmetry by appending network data frame to itself while
@@ -210,9 +209,9 @@ def symmetrize_df(network_df):
 
     return symm_network_df
 
-def map_network_names(network_df, genes_lookup_table):
+def map_node_names_to_index(network_df, genes_map, node_id):
     """ replace the node names with numbers for input to sparse matrix
-
+    map_network_names
     Args:
         network_df:
         genes_lookup_table:
@@ -220,15 +219,9 @@ def map_network_names(network_df, genes_lookup_table):
     Returns:
         network_df: the same dataframe with integer
     """
-    from_nodes = network_df.values[:, 0]
-    to_nodes = network_df.values[:, 1]
+    network_df[node_id] = [genes_map[i] for i in network_df[node_id]]
 
-    row_idx = np.int_(np.array([genes_lookup_table[i] for i in from_nodes]))
-    col_idx = np.int_(np.array([genes_lookup_table[i] for i in to_nodes]))
-    tmp_dict = {'col_0':row_idx, 'col_1':col_idx, 'col_2':network_df.values[:, 2]}
-    network_numeric_df = pd.DataFrame(tmp_dict)
-
-    return network_numeric_df
+    return network_df
 
 def convert_df_to_sparse(network_df, matrix_length):
     """ convert network dataframe with numerical columns to scipy.sparse matrix
@@ -266,7 +259,10 @@ def get_net_nmf_input(run_parameters):
 
     unique_gene_names = find_unique_gene_names(network_df)
     genes_lookup_table = create_node_names_dictionary(unique_gene_names)
-    network_df = map_network_names(network_df, genes_lookup_table)
+    
+    network_df = map_node_names_to_index(network_df, genes_lookup_table, 'node_1')
+    network_df = map_node_names_to_index(network_df, genes_lookup_table, 'node_2')
+    
     network_df = symmetrize_df(network_df)
     adj_mat = convert_df_to_sparse(network_df, len(unique_gene_names))
 
