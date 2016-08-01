@@ -237,65 +237,7 @@ def convert_df_to_sparse(network_df, matrix_length):
                                      shape=(matrix_length, matrix_length))
 
     return network_sparse
-
-def get_net_nmf_input(run_parameters):
-    """ get input arguments for network based non-negative matrix factroization
-        using file names specified in the run_parameters
-
-    Args:
-        run_parameters: parameter set structure of pytyon dictionary type
-
-    Returns:
-        network_mat: adjacency matrix
-        spreadsheet: genes x samples input data matrix shaped to network_mat
-        sample_names: column names of spreadsheet data
-        lap_diag: diagonal component of laplacian matrix
-        lap_pos: positional component of laplacian matrix
-    """
-    network_df = get_network(run_parameters['network_file_name'])
-    spreadsheet_df = get_spreadsheet(run_parameters)
-
-    node_1_names, node_2_names = extract_network_node_names(network_df)
-    unique_gene_names = find_unique_gene_names(node_1_names, node_2_names)
-    genes_lookup_table = create_node_names_dictionary(unique_gene_names)
     
-    network_df = map_node_names_to_index(network_df, genes_lookup_table, 'node_1')
-    network_df = map_node_names_to_index(network_df, genes_lookup_table, 'node_2')
-    
-    network_df = symmetrize_df(network_df)
-    network_mat = convert_df_to_sparse(network_df, len(unique_gene_names))
-
-    network_mat = normalized_matrix(network_mat)
-    lap_diag, lap_pos = form_network_laplacian(network_mat)
-
-    spreadsheet_df = update_spreadsheet(spreadsheet_df, unique_gene_names)
-    spreadsheet_mat = spreadsheet_df.as_matrix()
-    sample_names = spreadsheet_df.columns
-
-    if int(run_parameters['verbose']) != 0:
-        echo_input(network_mat, spreadsheet_mat, run_parameters)
-
-    return network_mat, spreadsheet_mat, sample_names, lap_diag, lap_pos
-
-def get_nmf_input(run_parameters):
-    """ get input arguments for non-negative matrix factroization.
-
-    Args:
-        run_parameters: parameter set structure of pytyon dictionary type
-
-    Returns:
-        spreadsheet_mat: genes x samples input data matrix
-        sample_names: column names of spreadsheet data
-    """
-    ss_df = get_spreadsheet(run_parameters)
-    spreadsheet_mat = ss_df.as_matrix()
-    spreadsheet_mat = get_quantile_norm(spreadsheet_mat)
-    if int(run_parameters['verbose']) != 0:
-        echo_input(np.zeros((1, 1)), spreadsheet_mat, run_parameters)
-    sample_names = ss_df.columns
-
-    return spreadsheet_mat, sample_names
-
 def save_cc_net_nmf_result(consensus_matrix, sample_names, labels, run_parameters):
     """ write the results of consensus clustering network based nmt to output files
 
@@ -331,7 +273,14 @@ def run_nmf(run_parameters):
     Args:
         run_parameters: parameter set dictionary
     """
-    spreadsheet_mat, sample_names = get_nmf_input(run_parameters)
+    #spreadsheet_mat, sample_names = get_nmf_input(run_parameters)    
+    ss_df = get_spreadsheet(run_parameters)
+    spreadsheet_mat = ss_df.as_matrix()
+    spreadsheet_mat = get_quantile_norm(spreadsheet_mat)
+    if int(run_parameters['verbose']) != 0:
+        echo_input(np.zeros((1, 1)), spreadsheet_mat, run_parameters)
+    sample_names = ss_df.columns    
+    
     h_mat = nmf(spreadsheet_mat, run_parameters)
     sp_size = spreadsheet_mat.shape[1]
     linkage_matrix = np.zeros((sp_size, sp_size))
@@ -353,8 +302,15 @@ def run_cc_nmf(run_parameters):
     Args:
         run_parameters: parameter set dictionary
     """
-    spreadsheet_mat, sample_names = get_nmf_input(run_parameters)
-    nmf_form_save_h_clusters(spreadsheet_mat, run_parameters)
+    #spreadsheet_mat, sample_names = get_nmf_input(run_parameters)
+    ss_df = get_spreadsheet(run_parameters)
+    spreadsheet_mat = ss_df.as_matrix()
+    spreadsheet_mat = get_quantile_norm(spreadsheet_mat)
+    if int(run_parameters['verbose']) != 0:
+        echo_input(np.zeros((1, 1)), spreadsheet_mat, run_parameters)
+    sample_names = ss_df.columns
+    
+    find_and_save_nmf_clusters(spreadsheet_mat, run_parameters)
     linkage_matrix, indicator_matrix = initialization(spreadsheet_mat)
     consensus_matrix = form_consensus_matrix(
         run_parameters, linkage_matrix, indicator_matrix)
@@ -374,7 +330,31 @@ def run_net_nmf(run_parameters):
     Args:
         run_parameters: parameter set dictionary
     """
-    network_mat, spreadsheet_mat, sample_names, lap_diag, lap_pos = get_net_nmf_input(run_parameters)
+    #network_mat, spreadsheet_mat, sample_names, lap_diag, lap_pos = get_net_nmf_input(run_parameters)
+    network_df = get_network(run_parameters['network_file_name'])
+    spreadsheet_df = get_spreadsheet(run_parameters)
+
+    node_1_names, node_2_names = extract_network_node_names(network_df)
+    unique_gene_names = find_unique_gene_names(node_1_names, node_2_names)
+    genes_lookup_table = create_node_names_dictionary(unique_gene_names)
+    
+    network_df = map_node_names_to_index(network_df, genes_lookup_table, 'node_1')
+    network_df = map_node_names_to_index(network_df, genes_lookup_table, 'node_2')
+    
+    network_df = symmetrize_df(network_df)
+    network_mat = convert_df_to_sparse(network_df, len(unique_gene_names))
+
+    network_mat = normalized_matrix(network_mat)
+    lap_diag, lap_pos = form_network_laplacian(network_mat)
+
+    spreadsheet_df = update_spreadsheet(spreadsheet_df, unique_gene_names)
+    spreadsheet_mat = spreadsheet_df.as_matrix()
+    sample_names = spreadsheet_df.columns
+
+    if int(run_parameters['verbose']) != 0:
+        echo_input(network_mat, spreadsheet_mat, run_parameters)
+    
+    
     sample_smooth, iterations = smooth_spreadsheet_with_rwr(spreadsheet_mat, network_mat, run_parameters)
     sample_quantile_norm = get_quantile_norm(sample_smooth)
     h_mat = perform_net_nmf(sample_quantile_norm, lap_pos, lap_diag, run_parameters)
@@ -400,9 +380,32 @@ def run_cc_net_nmf(run_parameters):
     Args:
         run_parameters: parameter set dictionary
     """
-    network_mat, spreadsheet_mat, sample_names, lap_diag, lap_pos = get_net_nmf_input(run_parameters)
+    #network_mat, spreadsheet_mat, sample_names, lap_diag, lap_pos = get_net_nmf_input(run_parameters)
+    network_df = get_network(run_parameters['network_file_name'])
+    spreadsheet_df = get_spreadsheet(run_parameters)
 
-    form_and_save_h_clusters(network_mat, spreadsheet_mat, lap_diag, lap_pos, run_parameters)
+    node_1_names, node_2_names = extract_network_node_names(network_df)
+    unique_gene_names = find_unique_gene_names(node_1_names, node_2_names)
+    genes_lookup_table = create_node_names_dictionary(unique_gene_names)
+    
+    network_df = map_node_names_to_index(network_df, genes_lookup_table, 'node_1')
+    network_df = map_node_names_to_index(network_df, genes_lookup_table, 'node_2')
+    
+    network_df = symmetrize_df(network_df)
+    network_mat = convert_df_to_sparse(network_df, len(unique_gene_names))
+
+    network_mat = normalized_matrix(network_mat)
+    lap_diag, lap_pos = form_network_laplacian(network_mat)
+
+    spreadsheet_df = update_spreadsheet(spreadsheet_df, unique_gene_names)
+    spreadsheet_mat = spreadsheet_df.as_matrix()
+    sample_names = spreadsheet_df.columns
+
+    if int(run_parameters['verbose']) != 0:
+        echo_input(network_mat, spreadsheet_mat, run_parameters)
+    
+
+    find_and_save_net_nmf_clusters(network_mat, spreadsheet_mat, lap_diag, lap_pos, run_parameters)
 
     linkage_matrix, indicator_matrix = initialization(spreadsheet_mat)
     consensus_matrix = form_consensus_matrix(
@@ -417,7 +420,7 @@ def run_cc_net_nmf(run_parameters):
 
     return
 
-def form_and_save_h_clusters(network_mat, spreadsheet_mat, lap_dag, lap_val, run_parameters):
+def find_and_save_net_nmf_clusters(network_mat, spreadsheet_mat, lap_dag, lap_val, run_parameters):
     """ Computes the components for the consensus matrix from the input network and spreadsheet_mat
         for network based stratification
 
@@ -463,7 +466,7 @@ def save_temporary_cluster(h_matrix, sample_permutation, run_parameters, sequenc
 
     return
 
-def nmf_form_save_h_clusters(spreadsheet_mat, run_parameters):
+def find_and_save_nmf_clusters(spreadsheet_mat, run_parameters):
     """ Computes the components for the non-negative matric factorization
         consensus matrix from the input spreadsheet_mat.
 
@@ -1032,7 +1035,11 @@ def run_parameters_dict():
         "results_directory":"results",
         "use_now_name":1,
         "verbose":1,
-        "display_clusters":1}
+        "display_clusters":1,
+        'method1':'cluster_nmf',
+        'method2':'cc_cluster_nmf',
+        'method3':'net_cluster_nmf',
+        'method4':'cc_net_cluster_nmf'}
 
     return run_parameters
 
