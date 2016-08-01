@@ -364,10 +364,6 @@ def run_net_nmf(run_parameters):
     spreadsheet_df = update_spreadsheet(spreadsheet_df, unique_gene_names)
     spreadsheet_mat = spreadsheet_df.as_matrix()
     sample_names = spreadsheet_df.columns
-
-    if int(run_parameters['verbose']) != 0:
-        echo_input(network_mat, spreadsheet_mat, run_parameters)
-    
     
     sample_smooth, iterations = smooth_spreadsheet_with_rwr(spreadsheet_mat, network_mat, run_parameters)
     sample_quantile_norm = get_quantile_norm(sample_smooth)
@@ -412,10 +408,6 @@ def run_cc_net_nmf(run_parameters):
     spreadsheet_df = update_spreadsheet(spreadsheet_df, unique_gene_names)
     spreadsheet_mat = spreadsheet_df.as_matrix()
     sample_names = spreadsheet_df.columns
-
-    if int(run_parameters['verbose']) != 0:
-        echo_input(network_mat, spreadsheet_mat, run_parameters)
-    
 
     find_and_save_net_nmf_clusters(network_mat, spreadsheet_mat, lap_diag, lap_pos, run_parameters)
 
