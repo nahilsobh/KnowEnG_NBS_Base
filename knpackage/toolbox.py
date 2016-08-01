@@ -146,7 +146,7 @@ def write_spreadsheet_droplist(spreadsheet_df, unique_gene_names, run_parameters
 
     return
 
-def update_spreadsheet(spreadsheet_df, unique_gene_names):
+def update_spreadsheet(spreadsheet_df, gene_names):
     """ resize and reorder spreadsheet dataframe to only the genes in the network
 
     Args:
@@ -156,7 +156,7 @@ def update_spreadsheet(spreadsheet_df, unique_gene_names):
     Returns:
         spreadsheet_df: pandas dataframe of spreadsheet with only network genes
     """
-    updated_spreadsheet_df = spreadsheet_df.loc[unique_gene_names].fillna(0)
+    updated_spreadsheet_df = spreadsheet_df.loc[gene_names].fillna(0)
 
     return updated_spreadsheet_df
 
@@ -175,7 +175,7 @@ def update_network(network, common_genes, node_id):
     
     return updated_network
 
-def create_node_names_dictionary(unique_gene_names, start_value=0):
+def create_node_names_dictionary(gene_names, start_value=0):
     """ create a python dictionary to look up gene locations from gene names
 
     Args:
@@ -184,8 +184,8 @@ def create_node_names_dictionary(unique_gene_names, start_value=0):
     Returns:
         node_names_dictionary: python dictionary of gene names to integer locations
     """
-    index_length = len(unique_gene_names)
-    node_names_dictionary = dict(zip(unique_gene_names, np.arange(start_value, index_length)))    
+    index_length = len(gene_names)
+    node_names_dictionary = dict(zip(gene_names, np.arange(start_value, index_length)))    
 
     return node_names_dictionary
 
