@@ -92,7 +92,7 @@ def extract_network_node_names(network_df):
     
     return node_1_names, node_2_names
 
-def find_unique_gene_names(network_df):
+def find_unique_gene_names(node_1_names, node_2_names):
     """ get the set (list) of all genes in the network dataframe
 
     Args:
@@ -101,12 +101,11 @@ def find_unique_gene_names(network_df):
     Returns:
         unique_gene_names: list of network genes
     """
-    node_1_names, node_2_names = extract_network_node_names(network_df)
     unique_gene_names = list(node_1_names | node_2_names)
 
     return unique_gene_names
     
-def find_common_gene_names(network_df):
+def find_common_gene_names(node_1_names, node_2_names):
     """ get the set (list) genes in both columns of the network dataframe
 
     Args:
@@ -115,7 +114,6 @@ def find_common_gene_names(network_df):
     Returns:
         common_gene_names: list of network genes
     """
-    node_1_names, node_2_names = extract_network_node_names(network_df)
     common_gene_names = list(node_1_names & node_2_names)
 
     return common_gene_names
@@ -257,7 +255,8 @@ def get_net_nmf_input(run_parameters):
     network_df = get_network(run_parameters['network_file_name'])
     spreadsheet_df = get_spreadsheet(run_parameters)
 
-    unique_gene_names = find_unique_gene_names(network_df)
+    node_1_names, node_2_names = extract_network_node_names(network_df)
+    unique_gene_names = find_unique_gene_names(node_1_names, node_2_names)
     genes_lookup_table = create_node_names_dictionary(unique_gene_names)
     
     network_df = map_node_names_to_index(network_df, genes_lookup_table, 'node_1')
