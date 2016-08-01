@@ -78,23 +78,35 @@ def get_network(network_name):
 
     return network_df
 
+def extract_network_node_names(network_df):
+    """ extract node names from network
+    
+    Args:
+        netwrok_df: network dataframe 
+    Returns:
+        node_1_names: all names in column 1
+        node_2_names: all names in column 2
+    """    
+    node_1_names = set(network_df.values[:, 0])
+    node_2_names = set(network_df.values[:, 1])
+    
+    return node_1_names, node_2_names
 
-def get_network_node_names(network_df):
+def find_unique_gene_names(network_df):
     """ get the set (list) of all genes in the network dataframe
 
     Args:
         network_df: pandas dataframe of network input file
 
     Returns:
-        gene_do_list: list of network genes
+        unique_gene_names: list of network genes
     """
-    from_nodes = network_df.values[:, 0]
-    to_nodes = network_df.values[:, 1]
-    gene_do_list = list(set(from_nodes) | set(to_nodes))
+    node_1_names, node_2_names = extract_network_node_names(network_df)
+    unique_gene_names = list(node_1_names | node_2_names)
 
-    return gene_do_list
+    return unique_gene_names
 
-def get_spreadsheet_gene_names(spreadsheet_df):
+def extract_spreadsheet_gene_names(spreadsheet_df):
     """ get the set (list) of all genes in the spreadsheet dataframe
 
     Args:
@@ -103,63 +115,63 @@ def get_spreadsheet_gene_names(spreadsheet_df):
     Returns:
         spreadsheet_genes: list of spreadsheet genes
     """
-    spreadsheet_genes = spreadsheet_df.index.values
+    spreadsheet_gene_names = spreadsheet_df.index.values
 
-    return spreadsheet_genes
+    return spreadsheet_gene_names
 
-def write_spreadsheet_droplist(spreadsheet_df, gene_do_list, run_parameters):
+def write_spreadsheet_droplist(spreadsheet_df, unique_gene_names, run_parameters):
     """ write the list of genes that are in the input spreadsheed and not in the
-        gene_do_list to the droplist_Fisher.txt in run_parameters tmp_directory
+        unique_gene_names to the droplist_Fisher.txt in run_parameters tmp_directory
     Args:
         spreadsheet_df: the full spreadsheet data frame before dropping
-        gene_do_list: the genes that will be used in calculation
+        unique_gene_names: the genes that will be used in calculation
         run_parameters: dictionary of parameters
     """
     tmp_dir = run_parameters['tmp_directory']
-    droplist = spreadsheet_df.loc[~spreadsheet_df.index.isin(gene_do_list)]
+    droplist = spreadsheet_df.loc[~spreadsheet_df.index.isin(unique_gene_names)]
     file_path = os.path.join(tmp_dir, "droplist_Fisher.txt")
     droplist.to_csv(file_path, sep='\t')
 
     return
 
-def update_spreadsheet_fill(spreadsheet_df, gene_do_list):
+def update_spreadsheet_fill(spreadsheet_df, unique_gene_names):
     """ resize and reorder spreadsheet dataframe to only the genes in the network
 
     Args:
         spreadsheet_df: pandas dataframe of spreadsheet
-        gene_do_list: python list of all genes in network
+        unique_gene_names: python list of all genes in network
 
     Returns:
         spreadsheet_df: pandas dataframe of spreadsheet with only network genes
     """
-    spreadsheet_df = spreadsheet_df.loc[gene_do_list].fillna(0)
+    spreadsheet_df = spreadsheet_df.loc[unique_gene_names].fillna(0)
 
     return spreadsheet_df
 
-def update_spreadsheet_drop(spreadsheet_df, gene_do_list):
+def update_spreadsheet_drop(spreadsheet_df, unique_gene_names):
     """ resize and reorder spreadsheet dataframe to only the genes in the network
 
     Args:
         spreadsheet_df: pandas dataframe of spreadsheet
-        gene_do_list: python list of all genes in network
+        unique_gene_names: python list of all genes in network
 
     Returns:
         spreadsheet_df: pandas dataframe of spreadsheet with only network genes
     """
-    spreadsheet_df = spreadsheet_df.loc[spreadsheet_df.index.isin(gene_do_list)]
+    spreadsheet_df = spreadsheet_df.loc[spreadsheet_df.index.isin(unique_gene_names)]
 
     return spreadsheet_df
 
-def create_genes_lookup_table(gene_do_list):
+def create_genes_lookup_table(unique_gene_names):
     """ create a python dictionary to look up gene locations from gene names
 
     Args:
-        gene_do_list: python list of gene names
+        unique_gene_names: python list of gene names
 
     Returns:
         genes_lookup_table: python dictionary of gene names to integer locations
     """
-    genes_lookup_table = dict(zip(gene_do_list, range(len(gene_do_list))))
+    genes_lookup_table = dict(zip(unique_gene_names, range(len(unique_gene_names))))
 
     return genes_lookup_table
 
@@ -235,16 +247,16 @@ def get_net_nmf_input(run_parameters):
     network_df = get_network(run_parameters['network_file_name'])
     spreadsheet_df = get_spreadsheet(run_parameters)
 
-    gene_do_list = get_network_node_names(network_df)
-    genes_lookup_table = create_genes_lookup_table(gene_do_list)
+    unique_gene_names = find_unique_gene_names(network_df)
+    genes_lookup_table = create_genes_lookup_table(unique_gene_names)
     network_df = map_network_names(network_df, genes_lookup_table)
     network_df = symmetrize_df(network_df)
-    adj_mat = convert_df_to_sparse(network_df, len(gene_do_list))
+    adj_mat = convert_df_to_sparse(network_df, len(unique_gene_names))
 
     adj_mat = normalized_matrix(adj_mat)
     lap_diag, lap_pos = form_network_laplacian(adj_mat)
 
-    spreadsheet_df = update_spreadsheet_fill(spreadsheet_df, gene_do_list)
+    spreadsheet_df = update_spreadsheet_fill(spreadsheet_df, unique_gene_names)
     spreadsheet = spreadsheet_df.as_matrix()
     sample_names = spreadsheet_df.columns
 
