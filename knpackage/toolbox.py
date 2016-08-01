@@ -158,10 +158,24 @@ def update_spreadsheet(spreadsheet_df, unique_gene_names):
     Returns:
         spreadsheet_df: pandas dataframe of spreadsheet with only network genes
     """
-    spreadsheet_df = spreadsheet_df.loc[unique_gene_names].fillna(0)
+    updated_spreadsheet_df = spreadsheet_df.loc[unique_gene_names].fillna(0)
 
-    return spreadsheet_df
+    return updated_spreadsheet_df
 
+def update_network(network, common_genes, node_id):
+    """This function removes edges that are not in the intersection.
+
+    Parameter:
+        network: property to gene edges
+        intersection: user provided dataframe
+
+    Returns:
+        a network that contains only genes 
+        that are in the intersection
+    """
+    updated_network = network[network[node_id].isin(common_genes)]
+    
+    return updated_network
 
 def create_genes_lookup_table(unique_gene_names):
     """ create a python dictionary to look up gene locations from gene names
@@ -1000,11 +1014,6 @@ def run_parameters_dict():
         "restart_probability":0.7,
         "number_of_iterations":100,
         "tolerance":1e-4,
-        "network_threshold":1.0,
-        "network_etype":"None",
-        "network_taxon":"None",
-        "property_etype":"None",
-        "property_taxon":"None",
         "network_file_name":"network_file_name",
         "samples_file_name":"samples_file_name",
         "tmp_directory":"tmp",
