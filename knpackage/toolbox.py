@@ -105,6 +105,20 @@ def find_unique_gene_names(network_df):
     unique_gene_names = list(node_1_names | node_2_names)
 
     return unique_gene_names
+    
+def find_common_gene_names(network_df):
+    """ get the set (list) genes in both columns of the network dataframe
+
+    Args:
+        network_df: pandas dataframe of network input file
+
+    Returns:
+        common_gene_names: list of network genes
+    """
+    node_1_names, node_2_names = extract_network_node_names(network_df)
+    common_gene_names = list(node_1_names & node_2_names)
+
+    return common_gene_names
 
 def extract_spreadsheet_gene_names(spreadsheet_df):
     """ get the set (list) of all genes in the spreadsheet dataframe
@@ -134,7 +148,7 @@ def write_spreadsheet_droplist(spreadsheet_df, unique_gene_names, run_parameters
 
     return
 
-def update_spreadsheet_fill(spreadsheet_df, unique_gene_names):
+def update_spreadsheet(spreadsheet_df, unique_gene_names):
     """ resize and reorder spreadsheet dataframe to only the genes in the network
 
     Args:
@@ -148,19 +162,6 @@ def update_spreadsheet_fill(spreadsheet_df, unique_gene_names):
 
     return spreadsheet_df
 
-def update_spreadsheet_drop(spreadsheet_df, unique_gene_names):
-    """ resize and reorder spreadsheet dataframe to only the genes in the network
-
-    Args:
-        spreadsheet_df: pandas dataframe of spreadsheet
-        unique_gene_names: python list of all genes in network
-
-    Returns:
-        spreadsheet_df: pandas dataframe of spreadsheet with only network genes
-    """
-    spreadsheet_df = spreadsheet_df.loc[spreadsheet_df.index.isin(unique_gene_names)]
-
-    return spreadsheet_df
 
 def create_genes_lookup_table(unique_gene_names):
     """ create a python dictionary to look up gene locations from gene names
@@ -256,7 +257,7 @@ def get_net_nmf_input(run_parameters):
     adj_mat = normalized_matrix(adj_mat)
     lap_diag, lap_pos = form_network_laplacian(adj_mat)
 
-    spreadsheet_df = update_spreadsheet_fill(spreadsheet_df, unique_gene_names)
+    spreadsheet_df = update_spreadsheet(spreadsheet_df, unique_gene_names)
     spreadsheet = spreadsheet_df.as_matrix()
     sample_names = spreadsheet_df.columns
 
