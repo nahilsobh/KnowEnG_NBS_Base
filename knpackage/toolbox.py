@@ -295,15 +295,13 @@ def run_nmf(run_parameters):
     spreadsheet_df = get_spreadsheet(run_parameters)
     spreadsheet_mat = spreadsheet_df.as_matrix()
     spreadsheet_mat = get_quantile_norm(spreadsheet_mat)
-    if int(run_parameters['verbose']) != 0:
-        echo_input(np.zeros((1, 1)), spreadsheet_mat, run_parameters)
     
     h_mat = nmf(spreadsheet_mat, run_parameters)
-    sp_size = spreadsheet_mat.shape[1]
-    linkage_matrix = np.zeros((sp_size, sp_size))
-    sample_perm = np.arange(0, sp_size)
+
+    linkage_matrix, indicator_matrix = initialization(spreadsheet_mat)
     linkage_matrix = update_linkage_matrix(h_mat, sample_perm, linkage_matrix)
-    labels = cluster_consensus_matrix(linkage_matrix, int(run_parameters['k']))
+    labels = kmeans_cluster_consensus_matrix(linkage_matrix, int(run_parameters['k']))
+
     sample_names = spreadsheet_df.columns
     save_clusters(sample_names, labels, run_parameters)
     
@@ -323,14 +321,13 @@ def run_cc_nmf(run_parameters):
     spreadsheet_df = get_spreadsheet(run_parameters)
     spreadsheet_mat = spreadsheet_df.as_matrix()
     spreadsheet_mat = get_quantile_norm(spreadsheet_mat)
-    if int(run_parameters['verbose']) != 0:
-        echo_input(np.zeros((1, 1)), spreadsheet_mat, run_parameters)
     
     find_and_save_nmf_clusters(spreadsheet_mat, run_parameters)
+
     linkage_matrix, indicator_matrix = initialization(spreadsheet_mat)
-    consensus_matrix = form_consensus_matrix(
-        run_parameters, linkage_matrix, indicator_matrix)
-    labels = cluster_consensus_matrix(consensus_matrix, int(run_parameters['k']))
+    consensus_matrix = form_consensus_matrix(run_parameters, linkage_matrix, indicator_matrix)
+    labels = kmeans_cluster_consensus_matrix(consensus_matrix, int(run_parameters['k']))
+
     sample_names = spreadsheet_df.columns
     write_consensus_matrix(consensus_matrix, sample_names, labels, run_parameters)
     save_clusters(sample_names, labels, run_parameters)
@@ -347,8 +344,8 @@ def run_net_nmf(run_parameters):
     Args:
         run_parameters: parameter set dictionary
     """
-    network_df = get_network(run_parameters['network_file_name'])
     spreadsheet_df = get_spreadsheet(run_parameters)
+    network_df = get_network(run_parameters['network_file_name'])
 
     node_1_names, node_2_names = extract_network_node_names(network_df)
     unique_gene_names = find_unique_gene_names(node_1_names, node_2_names)
@@ -375,11 +372,9 @@ def run_net_nmf(run_parameters):
     sample_quantile_norm = get_quantile_norm(sample_smooth)
     h_mat = perform_net_nmf(sample_quantile_norm, lap_pos, lap_diag, run_parameters)
 
-    sp_size = spreadsheet_mat.shape[1]
-    linkage_matrix = np.zeros((sp_size, sp_size))
-    sample_perm = np.arange(0, sp_size)
+    linkage_matrix, indicator_matrix = initialization(spreadsheet_mat)
     linkage_matrix = update_linkage_matrix(h_mat, sample_perm, linkage_matrix)
-    labels = cluster_consensus_matrix(linkage_matrix, np.int_(run_parameters["k"]))
+    labels = kmeans_cluster_consensus_matrix(linkage_matrix, np.int_(run_parameters["k"]))
 
     save_clusters(sample_names, labels, run_parameters)
 
@@ -396,8 +391,8 @@ def run_cc_net_nmf(run_parameters):
     Args:
         run_parameters: parameter set dictionary
     """
-    network_df = get_network(run_parameters['network_file_name'])
     spreadsheet_df = get_spreadsheet(run_parameters)
+    network_df = get_network(run_parameters['network_file_name'])
 
     node_1_names, node_2_names = extract_network_node_names(network_df)
     unique_gene_names = find_unique_gene_names(node_1_names, node_2_names)
@@ -425,7 +420,7 @@ def run_cc_net_nmf(run_parameters):
     linkage_matrix, indicator_matrix = initialization(spreadsheet_mat)
     consensus_matrix = form_consensus_matrix(
         run_parameters, linkage_matrix, indicator_matrix)
-    labels = cluster_consensus_matrix(consensus_matrix, int(run_parameters['k']))
+    labels = kmeans_cluster_consensus_matrix(consensus_matrix, int(run_parameters['k']))
 
     save_cc_net_nmf_result(consensus_matrix, sample_names, labels, run_parameters)
 
@@ -869,7 +864,7 @@ def update_indicator_matrix(sample_perm, indicator_matrix):
 
     return indicator_matrix
 
-def cluster_consensus_matrix(consensus_matrix, k=3):
+def kmeans_cluster_consensus_matrix(consensus_matrix, k=3):
     """ determine cluster assignments for consensus matrix
 
     Args:
@@ -895,7 +890,7 @@ def form_consensus_matrix_graphic(consensus_matrix, k=3):
         cc_cm: consensus_matrix with rows and columns in k-means sort order
     '''
     cc_cm = consensus_matrix.copy()
-    labels = cluster_consensus_matrix(consensus_matrix, k)
+    labels = kmeans_cluster_consensus_matrix(consensus_matrix, k)
     sorted_labels = np.argsort(labels)
     cc_cm = cc_cm[sorted_labels[:, None], sorted_labels]
 
