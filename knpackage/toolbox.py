@@ -63,21 +63,21 @@ def get_spreadsheet(run_parameters):
         run_parameters['samples_file_name'], sep='\t', header=0, index_col=0)
 
     return spreadsheet_df
+    
+def get_network(network_name):
+    """ Read in the cleaned subnet from KnowEnG network. 
 
-def get_network(run_parameters):
-    """ get the network file name from the run_parameters dictionary and
-        read the file into a pandas dataframe.
-
-    Args:
-        run_parameters: python dictionary with 'samples_file_name' key.
+    Args: 
+        network_name: file name of cleaned network
 
     Returns:
-        network_df: the network dataframe.
+        network_df: 3-column dataframe of cleaned network
     """
-    network_df = pd.read_csv(run_parameters['network_file_name'], sep='\t',
-                             header=None, usecols=[0, 1, 2])
+    network_df = pd.read_csv(network_name, header=None, names=None, delimiter='\t', usecols=[0, 1, 2])
+    network_df.columns = ['node_1', 'node_2', 'wt']
 
     return network_df
+
 
 def get_network_node_names(network_df):
     """ get the set (list) of all genes in the network dataframe
@@ -214,7 +214,7 @@ def convert_df_to_sparse(network_df, matrix_length):
     nwm = network_df.as_matrix()
     network_sparse = spar.csr_matrix((np.float_(nwm[:, 2]),
                                       (np.int_(nwm[:, 0]), np.int_(nwm[:, 1]))),
-                                      shape=(matrix_length, matrix_length))
+                                     shape=(matrix_length, matrix_length))
 
     return network_sparse
 
@@ -232,7 +232,7 @@ def get_net_nmf_input(run_parameters):
         lap_diag: diagonal component of laplacian matrix
         lap_pos: positional component of laplacian matrix
     """
-    network_df = get_network(run_parameters)
+    network_df = get_network(run_parameters['network_file_name'])
     spreadsheet_df = get_spreadsheet(run_parameters)
 
     gene_do_list = get_network_node_names(network_df)
@@ -293,7 +293,7 @@ def run_cc_net_nmf(run_parameters):
     if int(run_parameters['display_clusters']) != 0:
         con_mat_image = form_consensus_matrix_graphic(consensus_matrix, int(run_parameters['k']))
         display_clusters(con_mat_image)
-        
+
     return
 
 def save_cc_net_nmf_result(consensus_matrix, sample_names, labels, run_parameters):
@@ -350,7 +350,7 @@ def run_net_nmf(run_parameters):
         display_clusters(con_mat_image)
 
     return
-    
+
 def run_cc_nmf(run_parameters):
     """ Wrapper for call sequence that performs non-negative matrix factorization
         with consensus clustering.
@@ -699,8 +699,8 @@ def get_h(w_matrix, x_matrix):
             break
     return h_matrix
 
-def perform_net_nmf(x_matrix, lap_val, lap_dag, k=3, lmbda=1400, it_max=10000, h_clust_eq_limit=200,
-           obj_fcn_chk_freq=50):
+def perform_net_nmf(x_matrix, lap_val, lap_dag, k=3, lmbda=1400, it_max=10000,
+                    h_clust_eq_limit=200, obj_fcn_chk_freq=50):
     """Performs network based nonnegative matrix factorization that
     minimizes( ||X-WH|| + lambda.tr(W'.L.W)
 
