@@ -27,10 +27,10 @@ def cc_net_nmf(run_parameters):
     run_cc_net_nmf(run_parameters)
 
 SELECT = {
-    "cluster":nmf,
-    "cc_cluster":cc_nmf,
-    "net_cluster":net_nmf,
-    "cc_net_cluster":cc_net_nmf}
+    "cluster_nmf":nmf,
+    "cc_cluster_nmf":cc_nmf,
+    "net_cluster_nmf":net_nmf,
+    "cc_net_cluster_nmf":cc_net_nmf}
 
 def main():
     import sys
