@@ -299,6 +299,7 @@ def run_nmf(run_parameters):
     h_mat = nmf(spreadsheet_mat, run_parameters)
 
     linkage_matrix, indicator_matrix = initialization(spreadsheet_mat)
+    sample_perm = np.arange(0, spreadsheet_mat.shape[1])
     linkage_matrix = update_linkage_matrix(h_mat, sample_perm, linkage_matrix)
     labels = kmeans_cluster_consensus_matrix(linkage_matrix, int(run_parameters['k']))
 
@@ -373,6 +374,7 @@ def run_net_nmf(run_parameters):
     h_mat = perform_net_nmf(sample_quantile_norm, lap_pos, lap_diag, run_parameters)
 
     linkage_matrix, indicator_matrix = initialization(spreadsheet_mat)
+    sample_perm = np.arange(0, spreadsheet_mat.shape[1])
     linkage_matrix = update_linkage_matrix(h_mat, sample_perm, linkage_matrix)
     labels = kmeans_cluster_consensus_matrix(linkage_matrix, np.int_(run_parameters["k"]))
 
