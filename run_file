@@ -1,5 +1,5 @@
 k	4
-method	cc_net_cluster_nmf
+method	cluster_nmf
 number_of_iteriations_in_rwr	100
 verbose	1
 obj_fcn_chk_freq	50
