@@ -189,8 +189,9 @@ def create_node_names_dictionary(unique_gene_names, start_value=0):
 
     return node_names_dictionary
 
+    """
 def symmetrize_df(network_df):
-    """ create matrix symmetry by appending network data frame to itself while
+    create matrix symmetry by appending network data frame to itself while
         swapping col 0 and col 1 in the bottom half
 
     Args:
@@ -198,7 +199,7 @@ def symmetrize_df(network_df):
 
     Returns:
         symm_network_df:
-    """
+
     n_df = network_df.copy()
     n_df.loc[n_df.index[:], n_df.columns[0]] = network_df.loc[n_df.index[:], n_df.columns[1]]
     n_df.loc[n_df.index[:], n_df.columns[1]] = network_df.loc[n_df.index[:], n_df.columns[0]]
@@ -206,6 +207,24 @@ def symmetrize_df(network_df):
     symm_network_df.index = np.arange(0, symm_network_df.shape[0])
 
     return symm_network_df
+    """
+def symmetrize_df(network):
+    """This function symmetrizes the network in sparse form
+    
+    Parameter:
+        network: property to gene edges
+        
+    Returns:
+        symmetrized network
+    """
+    transpose = pd.DataFrame()
+    transpose['node_1'] = network['node_2']
+    transpose['node_2'] = network['node_1']
+    transpose['wt'] = network['wt']
+    symm_network = pd.concat([network, transpose])
+    
+    return symm_network
+
 
 def map_node_names_to_index(network_df, genes_map, node_id):
     """ replace the node names with numbers for input to sparse matrix
