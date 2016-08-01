@@ -296,30 +296,6 @@ def get_nmf_input(run_parameters):
 
     return spreadsheet, sample_names
 
-def run_cc_net_nmf(run_parameters):
-    """ Wrapper for call sequence that performs network based stratification
-        with consensus clustering.
-
-    Args:
-        run_parameters: parameter set dictionary
-    """
-    adj_mat, spreadsheet, sample_names, lap_diag, lap_pos = get_net_nmf_input(run_parameters)
-
-    form_and_save_h_clusters(adj_mat, spreadsheet, lap_diag, lap_pos, run_parameters)
-
-    linkage_matrix, indicator_matrix = initialization(spreadsheet)
-    consensus_matrix = form_consensus_matrix(
-        run_parameters, linkage_matrix, indicator_matrix)
-    labels = cluster_consensus_matrix(consensus_matrix, int(run_parameters['k']))
-
-    save_cc_net_nmf_result(consensus_matrix, sample_names, labels, run_parameters)
-
-    if int(run_parameters['display_clusters']) != 0:
-        con_mat_image = form_consensus_matrix_graphic(consensus_matrix, int(run_parameters['k']))
-        display_clusters(con_mat_image)
-
-    return
-
 def save_cc_net_nmf_result(consensus_matrix, sample_names, labels, run_parameters):
     """ write the results of consensus clustering network based nmt to output files
 
@@ -349,6 +325,49 @@ def create_df_with_sample_labels(sample_names, labels):
 
     return clusters_dataframe
 
+def run_nmf(run_parameters):
+    """ call sequence that performs non-negative matrix factorization and writes results
+
+    Args:
+        run_parameters: parameter set dictionary
+    """
+    spreadsheet, sample_names = get_nmf_input(run_parameters)
+    h_mat = nmf(spreadsheet, run_parameters)
+    sp_size = spreadsheet.shape[1]
+    linkage_matrix = np.zeros((sp_size, sp_size))
+    sample_perm = np.arange(0, sp_size)
+    linkage_matrix = update_linkage_matrix(h_mat, sample_perm, linkage_matrix)
+    labels = cluster_consensus_matrix(linkage_matrix, np.int_(run_parameters["k"]))
+    save_clusters(sample_names, labels, run_parameters)
+
+    if int(run_parameters['display_clusters']) != 0:
+        con_mat_image = form_consensus_matrix_graphic(linkage_matrix, int(run_parameters['k']))
+        display_clusters(con_mat_image)
+
+    return
+
+def run_cc_nmf(run_parameters):
+    """ call sequence that performs non-negative matrix factorization with
+        consensus clustering and writes results.
+
+    Args:
+        run_parameters: parameter set dictionary
+    """
+    spreadsheet, sample_names = get_nmf_input(run_parameters)
+    nmf_form_save_h_clusters(spreadsheet, run_parameters)
+    linkage_matrix, indicator_matrix = initialization(spreadsheet)
+    consensus_matrix = form_consensus_matrix(
+        run_parameters, linkage_matrix, indicator_matrix)
+    labels = cluster_consensus_matrix(consensus_matrix, int(run_parameters['k']))
+    write_consensus_matrix(consensus_matrix, sample_names, labels, run_parameters)
+    save_clusters(sample_names, labels, run_parameters)
+
+    if int(run_parameters['display_clusters']) != 0:
+        con_mat_image = form_consensus_matrix_graphic(consensus_matrix, int(run_parameters['k']))
+        display_clusters(con_mat_image)
+
+    return
+
 def run_net_nmf(run_parameters):
     """ Wrapper for call sequence that performs network based stratification
 
@@ -374,45 +393,26 @@ def run_net_nmf(run_parameters):
 
     return
 
-def run_cc_nmf(run_parameters):
-    """ Wrapper for call sequence that performs non-negative matrix factorization
+def run_cc_net_nmf(run_parameters):
+    """ Wrapper for call sequence that performs network based stratification
         with consensus clustering.
 
     Args:
         run_parameters: parameter set dictionary
     """
-    spreadsheet, sample_names = get_nmf_input(run_parameters)
-    nmf_form_save_h_clusters(spreadsheet, run_parameters)
+    adj_mat, spreadsheet, sample_names, lap_diag, lap_pos = get_net_nmf_input(run_parameters)
+
+    form_and_save_h_clusters(adj_mat, spreadsheet, lap_diag, lap_pos, run_parameters)
+
     linkage_matrix, indicator_matrix = initialization(spreadsheet)
     consensus_matrix = form_consensus_matrix(
         run_parameters, linkage_matrix, indicator_matrix)
     labels = cluster_consensus_matrix(consensus_matrix, int(run_parameters['k']))
-    write_consensus_matrix(consensus_matrix, sample_names, labels, run_parameters)
-    save_clusters(sample_names, labels, run_parameters)
+
+    save_cc_net_nmf_result(consensus_matrix, sample_names, labels, run_parameters)
 
     if int(run_parameters['display_clusters']) != 0:
         con_mat_image = form_consensus_matrix_graphic(consensus_matrix, int(run_parameters['k']))
-        display_clusters(con_mat_image)
-
-    return
-
-def run_nmf(run_parameters):
-    """ Wrapper for call sequence that performs non-negative matrix factorization
-
-    Args:
-        run_parameters: parameter set dictionary
-    """
-    spreadsheet, sample_names = get_nmf_input(run_parameters)
-    h_mat = nmf(spreadsheet, run_parameters)
-    sp_size = spreadsheet.shape[1]
-    linkage_matrix = np.zeros((sp_size, sp_size))
-    sample_perm = np.arange(0, sp_size)
-    linkage_matrix = update_linkage_matrix(h_mat, sample_perm, linkage_matrix)
-    labels = cluster_consensus_matrix(linkage_matrix, np.int_(run_parameters["k"]))
-    save_clusters(sample_names, labels, run_parameters)
-
-    if int(run_parameters['display_clusters']) != 0:
-        con_mat_image = form_consensus_matrix_graphic(linkage_matrix, int(run_parameters['k']))
         display_clusters(con_mat_image)
 
     return
