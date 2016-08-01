@@ -291,23 +291,22 @@ def run_nmf(run_parameters):
 
     Args:
         run_parameters: parameter set dictionary
-    """
-    #spreadsheet_mat, sample_names = get_nmf_input(run_parameters)    
-    ss_df = get_spreadsheet(run_parameters)
-    spreadsheet_mat = ss_df.as_matrix()
+    """ 
+    spreadsheet_df = get_spreadsheet(run_parameters)
+    spreadsheet_mat = spreadsheet_df.as_matrix()
     spreadsheet_mat = get_quantile_norm(spreadsheet_mat)
     if int(run_parameters['verbose']) != 0:
         echo_input(np.zeros((1, 1)), spreadsheet_mat, run_parameters)
-    sample_names = ss_df.columns    
     
     h_mat = nmf(spreadsheet_mat, run_parameters)
     sp_size = spreadsheet_mat.shape[1]
     linkage_matrix = np.zeros((sp_size, sp_size))
     sample_perm = np.arange(0, sp_size)
     linkage_matrix = update_linkage_matrix(h_mat, sample_perm, linkage_matrix)
-    labels = cluster_consensus_matrix(linkage_matrix, np.int_(run_parameters["k"]))
+    labels = cluster_consensus_matrix(linkage_matrix, int(run_parameters['k']))
+    sample_names = spreadsheet_df.columns
     save_clusters(sample_names, labels, run_parameters)
-
+    
     if int(run_parameters['display_clusters']) != 0:
         con_mat_image = form_consensus_matrix_graphic(linkage_matrix, int(run_parameters['k']))
         display_clusters(con_mat_image)
@@ -321,19 +320,18 @@ def run_cc_nmf(run_parameters):
     Args:
         run_parameters: parameter set dictionary
     """
-    #spreadsheet_mat, sample_names = get_nmf_input(run_parameters)
-    ss_df = get_spreadsheet(run_parameters)
-    spreadsheet_mat = ss_df.as_matrix()
+    spreadsheet_df = get_spreadsheet(run_parameters)
+    spreadsheet_mat = spreadsheet_df.as_matrix()
     spreadsheet_mat = get_quantile_norm(spreadsheet_mat)
     if int(run_parameters['verbose']) != 0:
         echo_input(np.zeros((1, 1)), spreadsheet_mat, run_parameters)
-    sample_names = ss_df.columns
     
     find_and_save_nmf_clusters(spreadsheet_mat, run_parameters)
     linkage_matrix, indicator_matrix = initialization(spreadsheet_mat)
     consensus_matrix = form_consensus_matrix(
         run_parameters, linkage_matrix, indicator_matrix)
     labels = cluster_consensus_matrix(consensus_matrix, int(run_parameters['k']))
+    sample_names = spreadsheet_df.columns
     write_consensus_matrix(consensus_matrix, sample_names, labels, run_parameters)
     save_clusters(sample_names, labels, run_parameters)
 
@@ -349,7 +347,6 @@ def run_net_nmf(run_parameters):
     Args:
         run_parameters: parameter set dictionary
     """
-    #network_mat, spreadsheet_mat, sample_names, lap_diag, lap_pos = get_net_nmf_input(run_parameters)
     network_df = get_network(run_parameters['network_file_name'])
     spreadsheet_df = get_spreadsheet(run_parameters)
 
@@ -399,7 +396,6 @@ def run_cc_net_nmf(run_parameters):
     Args:
         run_parameters: parameter set dictionary
     """
-    #network_mat, spreadsheet_mat, sample_names, lap_diag, lap_pos = get_net_nmf_input(run_parameters)
     network_df = get_network(run_parameters['network_file_name'])
     spreadsheet_df = get_spreadsheet(run_parameters)
 
@@ -449,7 +445,7 @@ def find_and_save_net_nmf_clusters(network_mat, spreadsheet_mat, lap_dag, lap_va
         lap_dag, lap_val: laplacian matrix components i.e. L = lap_dag - lap_val
         run_parameters: dictionay of run-time parameters
     """
-    for sample in range(0, np.int_(run_parameters["number_of_bootstraps"])):
+    for sample in range(0, int(run_parameters["number_of_bootstraps"])):
         sample_random, sample_permutation = pick_a_sample(spreadsheet_mat,
                                             np.float64(run_parameters["percent_sample"]))
         sample_smooth, iterations = \
@@ -493,7 +489,7 @@ def find_and_save_nmf_clusters(spreadsheet_mat, run_parameters):
         spreadsheet_mat: genes x samples matrix
         run_parameters: dictionay of run-time parameters
     """
-    for sample in range(0, np.int_(run_parameters["number_of_bootstraps"])):
+    for sample in range(0, int(run_parameters["number_of_bootstraps"])):
         sample_random, sample_permutation = pick_a_sample(spreadsheet_mat,
                                                 np.float64(run_parameters["percent_sample"]))
 
@@ -518,7 +514,7 @@ def form_indicator_matrix(run_parameters, indicator_matrix):
         indicator_matrix: indicator matrix summed with temp files permutations
     """
     tmp_dir = run_parameters["tmp_directory"]
-    number_of_bootstraps = np.int_(run_parameters["number_of_bootstraps"])
+    number_of_bootstraps = int(run_parameters["number_of_bootstraps"])
     for sample in range(0, number_of_bootstraps):
         pname = os.path.join(tmp_dir, ('temp_p' + str(sample)))
         sample_permutation = np.load(pname)
@@ -538,7 +534,7 @@ def form_linkage_matrix(run_parameters, linkage_matrix):
         linkage_matrix: linkage_matrix summed with linkages from temp files
     """
     tmp_dir = run_parameters["tmp_directory"]
-    number_of_bootstraps = np.int_(run_parameters["number_of_bootstraps"])
+    number_of_bootstraps = int(run_parameters["number_of_bootstraps"])
     for sample in range(0, number_of_bootstraps):
         hname = os.path.join(tmp_dir, ('temp_h' + str(sample)))
         h_mat = np.load(hname)
@@ -559,18 +555,6 @@ def form_consensus_matrix(run_parameters, linkage_matrix, indicator_matrix):
 
     Returns:
         consensus_matrix: sum of connectivity matrices / indicator matrices sum
-
-    Removed:
-
-    tmp_dir = run_parameters["tmp_directory"]
-    number_of_bootstraps = np.int_(run_parameters["number_of_bootstraps"])
-    for sample in range(0, number_of_bootstraps):
-        hname = os.path.join(tmp_dir, ('temp_h' + str(sample)))
-        h_mat = np.load(hname)
-        pname = os.path.join(tmp_dir, ('temp_p' + str(sample)))
-        sample_permutation = np.load(pname)
-        linkage_matrix = update_linkage_matrix(h_mat, sample_permutation, linkage_matrix)
-        indicator_matrix = update_indicator_matrix(sample_permutation, indicator_matrix)
     """
     indicator_matrix = form_indicator_matrix(run_parameters, indicator_matrix)
     linkage_matrix = form_linkage_matrix(run_parameters, linkage_matrix)
@@ -630,11 +614,11 @@ def pick_a_sample(spreadsheet_mat, percent_sample):
         sample_random: A specified precentage sample of the spread sheet.
         sample_permutation: the array that correponds to random sample.
     """
-    features_size = np.int_(np.round(spreadsheet_mat.shape[0] * (1-percent_sample)))
+    features_size = int(np.round(spreadsheet_mat.shape[0] * (1-percent_sample)))
     features_permutation = np.random.permutation(spreadsheet_mat.shape[0])
     features_permutation = features_permutation[0:features_size].T
 
-    patients_size = np.int_(np.round(spreadsheet_mat.shape[1] * percent_sample))
+    patients_size = int(np.round(spreadsheet_mat.shape[1] * percent_sample))
     sample_permutation = np.random.permutation(spreadsheet_mat.shape[1])
     sample_permutation = sample_permutation[0:patients_size]
 
@@ -667,7 +651,7 @@ def smooth_spreadsheet_with_rwr(restart, network_sparse, run_parameters):
     alpha = np.float_(run_parameters["restart_probability"])
     smooth_0 = restart
     smooth_r = (1. - alpha) * restart
-    for step in range(0, np.int_(run_parameters["number_of_iteriations_in_rwr"])):
+    for step in range(0, int(run_parameters["number_of_iteriations_in_rwr"])):
         smooth_1 = alpha * network_sparse.dot(smooth_0) + smooth_r
         deltav = LA.norm(smooth_1 - smooth_0, 'fro')
         if deltav < tol:
@@ -1021,7 +1005,7 @@ def now_name(name_base, name_extension, time_step=1e6):
     Returns:
         time_stamped_file_name: concatenation of the inputs with time-stamp
     """
-    nstr = np.str_(np.int_(time.time() * time_step))
+    nstr = np.str_(int(time.time() * time_step))
     time_stamped_file_name = name_base + '_' + nstr + '.' + name_extension
 
     return time_stamped_file_name
