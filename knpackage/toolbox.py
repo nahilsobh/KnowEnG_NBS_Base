@@ -166,17 +166,17 @@ def update_spreadsheet(spreadsheet_df, gene_names):
 
     return updated_spreadsheet_df
 
-def update_network(network, common_genes, node_id):
-    """ remove nodes not found as common_genes in network node_id.
+def update_network(network, nodes_list, node_id):
+    """ remove nodes not found as nodes_list in network node_id.
 
     Parameter:
         network: property to gene edges.
         intersection: user provided dataframe.
 
     Returns:
-        updated_network: network that contains (rows) common_genes found in node_id.
+        updated_network: network that contains (rows) nodes_list found in node_id.
     """
-    updated_network = network[network[node_id].isin(common_genes)]
+    updated_network = network[network[node_id].isin(nodes_list)]
 
     return updated_network
 
