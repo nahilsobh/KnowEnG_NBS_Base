@@ -92,8 +92,8 @@ def extract_network_node_names(network_df):
         node_1_names: all names in column 1.
         node_list_2: all names in column 2.
     """
-    node_list_1 = network_df.values[:, 0]
-    node_list_2 = network_df.values[:, 1]
+    node_list_1 = list(set(network_df.values[:, 0]))
+    node_list_2 = list(set(network_df.values[:, 1]))
 
     return node_list_1, node_list_2
 
@@ -134,7 +134,7 @@ def extract_spreadsheet_gene_names(spreadsheet_df):
     Returns:
         spreadsheet_gene_names: list of spreadsheet genes.
     """
-    spreadsheet_gene_names = spreadsheet_df.index.values
+    spreadsheet_gene_names = list(set(spreadsheet_df.index.values))  
 
     return spreadsheet_gene_names
 
@@ -377,8 +377,7 @@ def build_contigency_table(overlap_count, user_count, gene_count, count):
     
     return table
 
-
-def DRaWR(run_parameters):
+def run_DRaWR(run_parameters):
     """This is DRaWR function.
     Parameters:
         run_parameters: dictionary containing fisher parameters.
@@ -436,7 +435,7 @@ def perform_DRaWR(sparse_m, user_df, len_gene, run_parameters):
         run_parameters: dictionary of session parameters.
     """
 
-    tmp_dir = run_parameters['tmp_directory']
+    tmp_dir = run_parameters['results_directory']
     hetero_network = normalize(sparse_m, norm='l1', axis=0)
     new_user_df = append_baseline_to_spreadsheet(user_df, len_gene)
     new_user_matrix = normalize(new_user_df, norm='l1', axis=0)
@@ -546,41 +545,7 @@ def run_fisher(run_parameters):
     return
 
 
-def run_DRaWR(run_parameters):
-    '''fisher geneset characterization''' 
-    spreadsheet_df       = get_spreadsheet(run_parameters)
-    gene_gene_network_df = get_network(run_parameters['gg_network_file_name'])
-    prop_gene_network_df = get_network(run_parameters['pg_network_file_name'])
 
-    spreadsheet_gene_names     = extract_spreadsheet_gene_names(spreadsheet)
-
-    prop_gene_network_n1_names, prop_gene_network_n2_names = extract_network_node_names(prop_gene_network_df)
-
-    gene_gene_network_n1_names, gene_gene_network_n2_names = extract_network_node_names(gene_gene_network_df)
-
-    # limit the gene set to the intersection of networks (gene_gene and prop_gene) and user gene set
-    common_gene_names     = find_common_gene_names(gene_gene_network_n1_names, gene_gene_network_n2_names)	
-    common_gene_names     = find_common_gene_names(common_gene_names, prop_gene_network_n2_names)	
-    common_all_node_names = find_common_gene_names(common_gene_names, prop_gene_network_n1_names)
-
-    common_gene_names_dict          = create_node_names_dictionary(common_gene_names)
-    prop_gene_network_n1_names_dict = create_node_names_dictionary(prop_gene_network_n1_names)
-
-    # restrict spreadsheet and network to common genes and drop everthing else
-    spreadsheet_df = update_spreadsheet(spreadsheet_df, common_all_node_names)
-    network_df     = update_network(network_df, common_gene_names_dict)
-
-    # map every gene name to a sequential integer index
-    spreadsheet_df = map_node_name_to_index(updated_spreadsheet_df, "node_1")
-    networt_df     = map_node_name_to_index(updated_network_df, "node_1")
-    network_df     = map_node_name_to_index(updated_network_df, "node_2")
-
-    # store the network in a csr sparse format
-    network_sparse = convert_network_df_to_sparse(network_df, len(common_gene_names))
-
-    perform_DRaWR_test(network_sparse, spreadsheet_df.as_matrix())
-
-    return
 
 def run_nmf(run_parameters):
     """ wrapper: call sequence to perform non-negative matrix factorization and write results.
@@ -1276,7 +1241,7 @@ def now_name(name_base, name_extension, time_step=1e6):
 
     return time_stamped_file_name
 
-def run_parameters_dict():
+def cluster_parameters_dict():
     """ dictionary of parameters: keys with default values.
 
     Args: None.
@@ -1310,13 +1275,13 @@ def run_parameters_dict():
 
     return run_parameters
 
-def generate_run_file(file_name='run_file'):
-    """ write the defaut "run_parameters_dict" parameter set to a text file for editing.
+def generate_run_file(run_parameters=cluster_parameters_dict(), file_name='run_file'):
+    """ write a parameter set dictionary to a text file for editing.
 
     Args:
         file_name: file name (will be written as plain text).
     """
-    par_dataframe = pd.DataFrame.from_dict(run_parameters_dict(), orient='index')
+    par_dataframe = pd.DataFrame.from_dict(run_parameters, orient='index')
     par_dataframe.to_csv(file_name, sep='\t', header=False)
 
     return
