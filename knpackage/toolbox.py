@@ -134,7 +134,7 @@ def extract_spreadsheet_gene_names(spreadsheet_df):
     Returns:
         spreadsheet_gene_names: list of spreadsheet genes.
     """
-    spreadsheet_gene_names = spreadsheet_df.index.values
+    spreadsheet_gene_names = list(set(spreadsheet_df.index.values))    
 
     return spreadsheet_gene_names
 
@@ -1308,13 +1308,13 @@ def cluster_parameters_dict():
 
     return run_parameters
 
-def generate_run_file(file_name='run_file'):
-    """ write the defaut "cluster_parameters_dict" parameter set to a text file for editing.
+def generate_run_file(run_parameters=cluster_parameters_dict(), file_name='run_file'):
+    """ write a parameter set dictionary to a text file for editing.
 
     Args:
         file_name: file name (will be written as plain text).
     """
-    par_dataframe = pd.DataFrame.from_dict(cluster_parameters_dict(), orient='index')
+    par_dataframe = pd.DataFrame.from_dict(run_parameters, orient='index')
     par_dataframe.to_csv(file_name, sep='\t', header=False)
 
     return
