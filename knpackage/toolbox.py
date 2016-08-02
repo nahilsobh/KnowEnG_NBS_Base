@@ -436,7 +436,7 @@ def perform_DRaWR(sparse_m, user_df, len_gene, run_parameters):
         run_parameters: dictionary of session parameters.
     """
 
-    tmp_dir = run_parameters['tmp_directory']
+    tmp_dir = run_parameters['results_directory']
     hetero_network = normalize(sparse_m, norm='l1', axis=0)
     new_user_df = append_baseline_to_spreadsheet(user_df, len_gene)
     new_user_matrix = normalize(new_user_df, norm='l1', axis=0)
