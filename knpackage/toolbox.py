@@ -15,6 +15,7 @@ from numpy import maximum
 import pandas as pd
 import scipy.sparse as spar
 from scipy import stats
+from sklearn.preprocessing import normalize
 import matplotlib.pyplot as plt
 
 from sklearn.cluster import KMeans
@@ -272,9 +273,6 @@ def create_df_with_sample_labels(sample_names, labels):
 
     return clusters_dataframe
 
-def DRaWR():
-    pass
-
 
 def run_fisher(run_parameters):
     """fisher geneset characterization"""
@@ -300,7 +298,7 @@ def run_fisher(run_parameters):
     pg_network_df = map_node_names_to_index(pg_network_df, pg_network_n1_names_dict, "node_1")
     pg_network_df = map_node_names_to_index(pg_network_df, common_gene_names_dict, "node_2")
     
-    pg_network_sparse = convert_netwrok_df_to_sparse(
+    pg_network_sparse = convert_network_df_to_sparse(
         pg_network_df, len(pg_network_n1_names), len(common_gene_names))
     perform_fisher_exact_test(pg_network_sparse, spreadsheet_df.as_matrix())
     
@@ -326,7 +324,7 @@ def combime_dictionaries(dict1, dict2):
     """
     return dict(dict1.items() + dict2.items())
 
-def convert_netwrok_df_to_sparse(pg_network_df, row_size, col_size):
+def convert_network_df_to_sparse(pg_network_df, row_size, col_size):
     """  Convert global network to sparse matrix.
     
     Args: 
@@ -345,7 +343,7 @@ def convert_netwrok_df_to_sparse(pg_network_df, row_size, col_size):
         
     return pg_network_sparse
 
-def perform_fisher_exact_test(sparse_matrix, property_idx_map_df, user_set_input, universe_count, tmp_dir):
+def perform_fisher_exact_test(sparse_matrix, property_idx_reverse_dict, user_set_input, universe_count, tmp_dir):
     """
     This is to perform fisher exact test.
     Parameters:
@@ -364,13 +362,12 @@ def perform_fisher_exact_test(sparse_matrix, property_idx_map_df, user_set_input
         new_user_set = user_set_input.loc[:, col]
         user_count = np.sum(new_user_set.values)
         overlap_count = sparse_matrix.T.dot(new_user_set.values)
-        pval_overlap = np.zeros(property_idx_map_df.shape[0]) #pylint: disable=no-member
+        pval_overlap = np.zeros(len(property_idx_reverse_dict)) #pylint: disable=no-member
         for i, item_pval in enumerate(pval_overlap):
             table = build_contigency_table(overlap_count[i], user_count, gene_count[0, i], count)
             oddsratio, pvalue = stats.fisher_exact(table, alternative="greater")
             if overlap_count[i] != 0:
-                row_item = [col, property_idx_map_df.index.values[i], int(count),
-                            int(user_count), int(gene_count[0, i]), int(overlap_count[i]), pvalue]
+                row_item = [col, property_idx_reverse_dict[i], int(count), int(user_count), int(gene_count[0, i]), int(overlap_count[i]), pvalue]
                 df_val.append(row_item)
     df_col = ["user gene", "property", "count", "user count", "gene count", "overlap", "pval"]
     result_df = pd.DataFrame(df_val, columns=df_col).sort_values("pval", ascending=1)
@@ -411,8 +408,118 @@ def build_contigency_table(overlap_count, user_count, gene_count, count):
     return table
 
 
+def DRaWR(run_parameters):
+    """This is DRaWR function.
+    Parameters:
+        run_parameters: dictionary containing fisher parameters.
+    """    
+    property_gene_df = get_network(run_parameters["property_edge_file_name"])
+    gene_gene_df = get_network(run_parameters["network_file_name"])
 
+    
+    gene_1_names, gene_2_names = extract_network_node_names(gene_gene_df)
+    property_names, extra_genes_names = extract_network_node_names(property_gene_df)
 
+    network_genes = find_unique_node_names(gene_1_names, gene_2_names)
+    gene_union = find_unique_node_names(network_genes, extra_genes_names)
+    #dictionary
+    genes_map = create_node_names_dictionary(gene_union, start_value=0)
+    property_map = create_node_names_dictionary(list(set(property_names)), len(gene_union))
+    #convert to int
+    gene_gene_df = map_node_names_to_index(gene_gene_df, genes_map, 'node_1')
+    gene_gene_df = map_node_names_to_index(gene_gene_df, genes_map, 'node_2')
+    property_gene_df = map_node_names_to_index(property_gene_df, property_map, 'node_1')
+    property_gene_df = map_node_names_to_index(property_gene_df, genes_map, 'node_2')
+
+    gene_gene_df = symmetrize_df(gene_gene_df)
+    gene_gene_df = normalize_df(gene_gene_df, 'wt', 1)
+    property_gene_df = normalize_df(property_gene_df, 'wt', 2)
+    property_gene_df = symmetrize_df(property_gene_df)
+
+    #compose N, P, P'
+    sparse_network = form_hybrid_network([gene_gene_df, property_gene_df])
+    #lookup table
+    # idx_map = create_all_nodes_lookup_table(genes_map, property_map)
+
+    # sparse_network_df, idx_map_df, len_gene = preDRaWR(gene_gene_df, property_gene_df)
+
+    #user read and intersection
+    union_all = gene_union + list(set(property_names))
+    user_gene_df = get_spreadsheet(run_parameters)
+    write_spreadsheet_droplist(user_gene_df, union_all, run_parameters, 'droplist_DRaWR.txt')
+    new_user_gene_df = update_spreadsheet(user_gene_df, union_all)
+
+    #create sparse matrix for DRaWR
+    sparse_matrix = convert_df_to_sparse(sparse_network, len(union_all), len(union_all))
+    perform_DRaWR(sparse_matrix, new_user_gene_df, len(gene_union), run_parameters)
+    
+    return
+    
+def perform_DRaWR(sparse_m, user_df, len_gene, run_parameters):
+    """This is to perform random walk.
+    Perform random walk given global network and
+    user set gene sets.
+    Parameters:
+        sparse_m: sparse matrix of global network.
+        user_df: dataframe of user gene sets.
+        len_genes: length of genes in the in the user spreadsheet.
+        run_parameters: dictionary of session parameters.
+    """
+
+    tmp_dir = run_parameters['tmp_directory']
+    hetero_network = normalize(sparse_m, norm='l1', axis=0)
+    new_user_df = append_baseline_to_spreadsheet(user_df, len_gene)
+    new_user_matrix = normalize(new_user_df, norm='l1', axis=0)
+    
+    final_user_matrix, step = smooth_spreadsheet_with_rwr(new_user_matrix, hetero_network, run_parameters)
+    final_user_df = pd.DataFrame(final_user_matrix, index=new_user_df.index.values, columns=new_user_df.columns.values)
+    final_user_df = final_user_df.iloc[len_gene:]
+    for col in final_user_df.columns.values[:-1]:
+        final_user_df[col] = final_user_df[col] - final_user_df['base']
+        final_user_df[col] = final_user_df.sort_values(col, ascending=0).index.values
+
+    final_user_df['base'] = final_user_df.sort_values('base', ascending=0).index.values
+    save_result(final_user_df, tmp_dir, "rw_result.txt")
+    
+    return
+
+def append_baseline_to_spreadsheet(user_df, len_gene):
+    """This is to modify user spreadsheet.
+    Append baseline vector to the user spreadsheet matrix.
+    Parameters:
+        user_df: dataframe of user spreadsheet.
+        len_gene: length of genes in the user spreadsheet.
+    Returns:
+        user_df: new dataframe with baseline vector
+        appended in the last column.
+    """
+    property_size = user_df.shape[0] - len_gene
+    user_df["base"] = np.append(np.ones(len_gene), np.zeros(property_size))
+    
+    return user_df
+
+def normalize_df(network_df, node_id, n):
+    """ normalize the network column with numbers for input.
+    Args:
+        network_df: network dataframe.
+        node_id: column name
+        n: coefficient 
+    Returns:
+        network_df: the same dataframe with weight normalized.
+    """
+    network_df[node_id] /= n * network_df[node_id].sum()
+    
+    return network_df
+
+def form_hybrid_network(list_of_networks):
+    """This function concatenates a list of networks.
+    Parameter:
+        list_of_networks: a list of networks to join
+    
+    Returns:
+        a combined hybrid network
+    """
+    return pd.concat(list_of_networks)
 
 def run_nmf(run_parameters):
     """ wrapper: call sequence to perform non-negative matrix factorization and write results.
