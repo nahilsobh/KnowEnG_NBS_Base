@@ -1274,7 +1274,7 @@ def now_name(name_base, name_extension, time_step=1e6):
 
     return time_stamped_file_name
 
-def run_parameters_dict():
+def cluster_parameters_dict():
     """ dictionary of parameters: keys with default values.
 
     Args: None.
@@ -1309,12 +1309,12 @@ def run_parameters_dict():
     return run_parameters
 
 def generate_run_file(file_name='run_file'):
-    """ write the defaut "run_parameters_dict" parameter set to a text file for editing.
+    """ write the defaut "cluster_parameters_dict" parameter set to a text file for editing.
 
     Args:
         file_name: file name (will be written as plain text).
     """
-    par_dataframe = pd.DataFrame.from_dict(run_parameters_dict(), orient='index')
+    par_dataframe = pd.DataFrame.from_dict(cluster_parameters_dict(), orient='index')
     par_dataframe.to_csv(file_name, sep='\t', header=False)
 
     return
