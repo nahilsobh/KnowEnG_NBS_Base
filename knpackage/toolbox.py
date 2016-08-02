@@ -10,11 +10,12 @@ import time
 import argparse
 import numpy as np
 import numpy.linalg as LA
+from numpy import maximum
+
 import pandas as pd
 import scipy.sparse as spar
 import matplotlib.pyplot as plt
 
-from numpy import maximum
 from sklearn.cluster import KMeans
 
 def get_run_directory(args):
@@ -63,34 +64,35 @@ def get_spreadsheet(run_parameters):
         run_parameters['samples_file_name'], sep='\t', header=0, index_col=0)
 
     return spreadsheet_df
-    
-def get_network(network_name):
-    """ Read in the cleaned subnet from KnowEnG network. 
 
-    Args: 
+def get_network(network_name):
+    """ Read in the cleaned subnet from KnowEnG network.
+
+    Args:
         network_name: file name of cleaned network
 
     Returns:
         network_df: 3-column dataframe of cleaned network
     """
-    network_df = pd.read_csv(network_name, header=None, names=None, delimiter='\t', usecols=[0, 1, 2])
+    network_df = pd.read_csv(
+        network_name, header=None, names=None, delimiter='\t', usecols=[0, 1, 2])
     network_df.columns = ['node_1', 'node_2', 'wt']
 
     return network_df
 
 def extract_network_node_names(network_df):
     """ extract node names lists from network.
-    
+
     Args:
         netwrok_df: network dataframe.
-        
+
     Returns:
         node_1_names: all names in column 1.
         node_2_names: all names in column 2.
-    """    
+    """
     node_1_names = network_df.values[:, 0]
     node_2_names = network_df.values[:, 1]
-    
+
     return node_1_names, node_2_names
 
 def find_unique_gene_names(node_1_names, node_2_names):
@@ -106,7 +108,7 @@ def find_unique_gene_names(node_1_names, node_2_names):
     unique_gene_names = list(set(node_1_names) | set(node_2_names))
 
     return unique_gene_names
-    
+
 def find_common_gene_names(node_1_names, node_2_names):
     """ get the list (set intersection) of genes in both of the input lists.
 
@@ -137,7 +139,7 @@ def extract_spreadsheet_gene_names(spreadsheet_df):
 def write_spreadsheet_droplist(spreadsheet_df, unique_gene_names, run_parameters):
     """ write the list of genes that are in the input spreadsheed and not in the
         unique_gene_names to 'droplist_Fisher.txt' in run_parameters['tmp_directory'].
-        
+
     Args:
         spreadsheet_df: the full spreadsheet data frame before dropping.
         unique_gene_names: the genes that will be used after dropping.
@@ -175,7 +177,7 @@ def update_network(network, common_genes, node_id):
         updated_network: network that contains (rows) common_genes found in node_id.
     """
     updated_network = network[network[node_id].isin(common_genes)]
-    
+
     return updated_network
 
 def create_node_names_dictionary(gene_names, start_value=0):
@@ -188,16 +190,16 @@ def create_node_names_dictionary(gene_names, start_value=0):
         node_names_dictionary: python dictionary of gene names to integer locations
     """
     index_length = len(gene_names)
-    node_names_dictionary = dict(zip(gene_names, np.arange(start_value, index_length)))    
+    node_names_dictionary = dict(zip(gene_names, np.arange(start_value, index_length)))
 
     return node_names_dictionary
 
 def symmetrize_df(network):
     """ symmetrize network in sparse (3 cloumn) form.
-    
+
     Parameter:
         network: property to gene edges.
-        
+
     Returns:
         symm_network: symm_network[r, c] == symm_network[c, r], (network extended).
     """
@@ -206,7 +208,7 @@ def symmetrize_df(network):
     transpose['node_2'] = network['node_1']
     transpose['wt'] = network['wt']
     symm_network = pd.concat([network, transpose])
-    
+
     return symm_network
 
 
@@ -240,7 +242,7 @@ def convert_df_to_sparse(network_df, matrix_length):
                                      shape=(matrix_length, matrix_length))
 
     return network_sparse
-    
+
 def save_cc_net_nmf_result(consensus_matrix, sample_names, labels, run_parameters):
     """ write the results of network based nmf consensus clustering to output files.
 
@@ -274,11 +276,11 @@ def run_nmf(run_parameters):
 
     Args:
         run_parameters: parameter set dictionary.
-    """ 
+    """
     spreadsheet_df = get_spreadsheet(run_parameters)
     spreadsheet_mat = spreadsheet_df.as_matrix()
     spreadsheet_mat = get_quantile_norm(spreadsheet_mat)
-    
+
     h_mat = nmf(spreadsheet_mat, run_parameters)
 
     linkage_matrix, indicator_matrix = initialization(spreadsheet_mat)
@@ -288,7 +290,7 @@ def run_nmf(run_parameters):
 
     sample_names = spreadsheet_df.columns
     save_clusters(sample_names, labels, run_parameters)
-    
+
     if int(run_parameters['display_clusters']) != 0:
         con_mat_image = form_consensus_matrix_graphic(linkage_matrix, int(run_parameters['k']))
         display_clusters(con_mat_image)
@@ -305,7 +307,7 @@ def run_cc_nmf(run_parameters):
     spreadsheet_df = get_spreadsheet(run_parameters)
     spreadsheet_mat = spreadsheet_df.as_matrix()
     spreadsheet_mat = get_quantile_norm(spreadsheet_mat)
-    
+
     find_and_save_nmf_clusters(spreadsheet_mat, run_parameters)
 
     linkage_matrix, indicator_matrix = initialization(spreadsheet_mat)
@@ -317,8 +319,7 @@ def run_cc_nmf(run_parameters):
     save_clusters(sample_names, labels, run_parameters)
 
     if int(run_parameters['display_clusters']) != 0:
-        con_mat_image = form_consensus_matrix_graphic(consensus_matrix, int(run_parameters['k']))
-        display_clusters(con_mat_image)
+        display_clusters(form_consensus_matrix_graphic(consensus_matrix, int(run_parameters['k'])))
 
     return
 
@@ -334,10 +335,10 @@ def run_net_nmf(run_parameters):
     node_1_names, node_2_names = extract_network_node_names(network_df)
     unique_gene_names = find_unique_gene_names(node_1_names, node_2_names)
     genes_lookup_table = create_node_names_dictionary(unique_gene_names)
-    
+
     network_df = map_node_names_to_index(network_df, genes_lookup_table, 'node_1')
     network_df = map_node_names_to_index(network_df, genes_lookup_table, 'node_2')
-    
+
     network_df = symmetrize_df(network_df)
     network_mat = convert_df_to_sparse(network_df, len(unique_gene_names))
 
@@ -347,21 +348,21 @@ def run_net_nmf(run_parameters):
     spreadsheet_df = update_spreadsheet(spreadsheet_df, unique_gene_names)
     spreadsheet_mat = spreadsheet_df.as_matrix()
     sample_names = spreadsheet_df.columns
-    
-    sample_smooth, iterations = smooth_spreadsheet_with_rwr(spreadsheet_mat, network_mat, run_parameters)
+
+    sample_smooth, iterations = smooth_spreadsheet_with_rwr(
+        spreadsheet_mat, network_mat, run_parameters)
     sample_quantile_norm = get_quantile_norm(sample_smooth)
     h_mat = perform_net_nmf(sample_quantile_norm, lap_pos, lap_diag, run_parameters)
 
     linkage_matrix, indicator_matrix = initialization(spreadsheet_mat)
     sample_perm = np.arange(0, spreadsheet_mat.shape[1])
     linkage_matrix = update_linkage_matrix(h_mat, sample_perm, linkage_matrix)
-    labels = kmeans_cluster_consensus_matrix(linkage_matrix, np.int_(run_parameters["k"]))
+    labels = kmeans_cluster_consensus_matrix(linkage_matrix, int(run_parameters["k"]))
 
     save_clusters(sample_names, labels, run_parameters)
 
     if int(run_parameters['display_clusters']) != 0:
-        con_mat_image = form_consensus_matrix_graphic(linkage_matrix, int(run_parameters['k']))
-        display_clusters(con_mat_image)
+        display_clusters(form_consensus_matrix_graphic(linkage_matrix, int(run_parameters['k'])))
 
     return
 
@@ -378,10 +379,10 @@ def run_cc_net_nmf(run_parameters):
     node_1_names, node_2_names = extract_network_node_names(network_df)
     unique_gene_names = find_unique_gene_names(node_1_names, node_2_names)
     genes_lookup_table = create_node_names_dictionary(unique_gene_names)
-    
+
     network_df = map_node_names_to_index(network_df, genes_lookup_table, 'node_1')
     network_df = map_node_names_to_index(network_df, genes_lookup_table, 'node_2')
-    
+
     network_df = symmetrize_df(network_df)
     network_mat = convert_df_to_sparse(network_df, len(unique_gene_names))
 
@@ -402,13 +403,12 @@ def run_cc_net_nmf(run_parameters):
     save_cc_net_nmf_result(consensus_matrix, sample_names, labels, run_parameters)
 
     if int(run_parameters['display_clusters']) != 0:
-        con_mat_image = form_consensus_matrix_graphic(consensus_matrix, int(run_parameters['k']))
-        display_clusters(con_mat_image)
+        display_clusters(form_consensus_matrix_graphic(consensus_matrix, int(run_parameters['k'])))
 
     return
 
 def find_and_save_net_nmf_clusters(network_mat, spreadsheet_mat, lap_dag, lap_val, run_parameters):
-    """ cnetral loop: compute components for the consensus matrix from the input 
+    """ cnetral loop: compute components for the consensus matrix from the input
         network and spreadsheet matrices and save them to temp files.
 
     Args:
@@ -418,16 +418,14 @@ def find_and_save_net_nmf_clusters(network_mat, spreadsheet_mat, lap_dag, lap_va
         run_parameters: dictionay of run-time parameters.
     """
     for sample in range(0, int(run_parameters["number_of_bootstraps"])):
-        sample_random, sample_permutation = pick_a_sample(spreadsheet_mat,
-                                            np.float64(run_parameters["percent_sample"]))
+        sample_random, sample_permutation = pick_a_sample(
+            spreadsheet_mat, np.float64(run_parameters["percent_sample"]))
         sample_smooth, iterations = \
         smooth_spreadsheet_with_rwr(sample_random, network_mat, run_parameters)
 
         if int(run_parameters['verbose']) != 0:
             print("{} of {}: iterations = {}".format(
-                sample + 1,
-                run_parameters["number_of_bootstraps"],
-                iterations))
+                sample + 1, run_parameters["number_of_bootstraps"], iterations))
 
         sample_quantile_norm = get_quantile_norm(sample_smooth)
         h_mat = perform_net_nmf(sample_quantile_norm, lap_val, lap_dag, run_parameters)
@@ -436,9 +434,30 @@ def find_and_save_net_nmf_clusters(network_mat, spreadsheet_mat, lap_dag, lap_va
 
     return
 
+def find_and_save_nmf_clusters(spreadsheet_mat, run_parameters):
+    """ cnetral loop: compute components for the consensus matrix by
+        non-negative matrix factorization.
+
+    Args:
+        spreadsheet_mat: genes x samples matrix.
+        run_parameters: dictionay of run-time parameters.
+    """
+    for sample in range(0, int(run_parameters["number_of_bootstraps"])):
+        sample_random, sample_permutation = pick_a_sample(
+            spreadsheet_mat, np.float64(run_parameters["percent_sample"]))
+
+        h_mat = nmf(sample_random, run_parameters)
+        save_temporary_cluster(h_mat, sample_permutation, run_parameters, sample)
+
+        if int(run_parameters['verbose']) != 0:
+            print('nmf {} of {}'.format(
+                sample + 1, run_parameters["number_of_bootstraps"]))
+
+    return
+
 def save_temporary_cluster(h_matrix, sample_permutation, run_parameters, sequence_number):
     """ save one h_matrix and one permutation in temorary files with sequence_number appended names.
-    
+
     Args:
         h_matrix: k x permutation size matrix.
         sample_permutation: indices of h_matrix columns permutation.
@@ -450,27 +469,6 @@ def save_temporary_cluster(h_matrix, sample_permutation, run_parameters, sequenc
     h_matrix.dump(hname)
     pname = os.path.join(tmp_dir, ('temp_p' + str(sequence_number)))
     sample_permutation.dump(pname)
-
-    return
-
-def find_and_save_nmf_clusters(spreadsheet_mat, run_parameters):
-    """ cnetral loop: compute components for the consensus matrix by 
-        non-negative matrix factorization.
-
-    Args:
-        spreadsheet_mat: genes x samples matrix.
-        run_parameters: dictionay of run-time parameters.
-    """
-    for sample in range(0, int(run_parameters["number_of_bootstraps"])):
-        sample_random, sample_permutation = pick_a_sample(spreadsheet_mat,
-                                                np.float64(run_parameters["percent_sample"]))
-
-        h_mat = nmf(sample_random, run_parameters)
-        save_temporary_cluster(h_mat, sample_permutation, run_parameters, sample)
-
-        if int(run_parameters['verbose']) != 0:
-            print('nmf {} of {}'.format(
-                sample + 1, run_parameters["number_of_bootstraps"]))
 
     return
 
@@ -603,7 +601,7 @@ def pick_a_sample(spreadsheet_mat, percent_sample):
 
 def smooth_spreadsheet_with_rwr(restart, network_sparse, run_parameters):
     """ simulate a random walk with restart. iterate: (R_n+1 = a*N*R_n + (1-a)*R_n).
-    
+
     Args:
         restart: restart array of any column size.
         network_sparse: network stored in sparse format.
@@ -699,7 +697,7 @@ def get_h(w_matrix, x_matrix):
 def perform_net_nmf(x_matrix, lap_val, lap_dag, run_parameters):
     """ perform network based nonnegative matrix factorization, minimize:
         ||X-WH|| + lambda.tr(W'.L.W), with W, H positive.
-        
+
     Args:
         x_matrix: the postive matrix (X) to be decomposed into W.H
         lap_val: the laplacian matrix
@@ -712,8 +710,6 @@ def perform_net_nmf(x_matrix, lap_val, lap_dag, run_parameters):
     """
     k = float(run_parameters["k"])
     lmbda = float(run_parameters["lmbda"])
-    obj_fcn_chk_freq = int(run_parameters["obj_fcn_chk_freq"])
-    h_clust_eq_limit = float(run_parameters["h_clust_eq_limit"])
     epsilon = 1e-15
     w_matrix = np.random.rand(x_matrix.shape[0], k)
     w_matrix = maximum(w_matrix / maximum(sum(w_matrix), epsilon), epsilon)
@@ -721,14 +717,14 @@ def perform_net_nmf(x_matrix, lap_val, lap_dag, run_parameters):
     h_clust_eq = np.argmax(h_matrix, 0)
     h_eq_count = 0
     for itr in range(0, int(run_parameters["it_max"])):
-        if np.mod(itr, obj_fcn_chk_freq) == 0:
+        if np.mod(itr, int(run_parameters["obj_fcn_chk_freq"])) == 0:
             h_clusters = np.argmax(h_matrix, 0)
             if (itr > 0) & (sum(h_clust_eq != h_clusters) == 0):
-                h_eq_count = h_eq_count + obj_fcn_chk_freq
+                h_eq_count = h_eq_count + int(run_parameters["obj_fcn_chk_freq"])
             else:
                 h_eq_count = 0
             h_clust_eq = h_clusters
-            if h_eq_count >= h_clust_eq_limit:
+            if h_eq_count >= float(run_parameters["h_clust_eq_limit"]):
                 break
         numerator = maximum(np.dot(x_matrix, h_matrix.T) + lmbda * lap_val.dot(w_matrix), epsilon)
         denomerator = maximum(np.dot(w_matrix, np.dot(h_matrix, h_matrix.T))
@@ -742,7 +738,7 @@ def perform_net_nmf(x_matrix, lap_val, lap_dag, run_parameters):
 def nmf(x_matrix, run_parameters):
     """ nonnegative matrix factorization, minimize the diffence between X and W dot H
         with positive factor matrices W, and H.
-        
+
     Args:
         x_matrix: the postive matrix (X) to be decomposed into W dot H.
         run_parameters: parameters dictionary with keys "k", "it_max",
@@ -925,7 +921,8 @@ def write_consensus_matrix(consensus_matrix, sample_names, labels, run_parameter
         run_parameters: path to write to consensus_data file (run_parameters["results_directory"]).
     """
     if int(run_parameters["use_now_name"]) != 0:
-        file_name = os.path.join(run_parameters["results_directory"], now_name('consensus_data', 'df'))
+        file_name = os.path.join(
+            run_parameters["results_directory"], now_name('consensus_data', 'df'))
     else:
         file_name = os.path.join(run_parameters["results_directory"], 'consensus_data.df')
     out_df = pd.DataFrame(data=consensus_matrix, columns=sample_names, index=labels)
@@ -942,7 +939,8 @@ def save_clusters(sample_names, labels, run_parameters):
         run_parameters: write path (run_parameters["results_directory"]).
     """
     if int(run_parameters["use_now_name"]) != 0:
-        file_name = os.path.join(run_parameters["results_directory"], now_name('labels_data', 'tsv'))
+        file_name = os.path.join(
+            run_parameters["results_directory"], now_name('labels_data', 'tsv'))
     else:
         file_name = os.path.join(run_parameters["results_directory"], 'labels_data.tsv')
 
