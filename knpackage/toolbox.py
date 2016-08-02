@@ -138,19 +138,19 @@ def extract_spreadsheet_gene_names(spreadsheet_df):
 
     return spreadsheet_gene_names
 
-def write_spreadsheet_droplist(spreadsheet_df, unique_gene_names, run_parameters):
+def write_spreadsheet_droplist(spreadsheet_df, unique_gene_names, run_parameters, file_name):
     """ write the list of genes that are in the input spreadsheed and not in the
-        unique_gene_names to 'droplist_Fisher.txt' in run_parameters['tmp_directory'].
-
+        unique_gene_names to the droplist_Fisher.txt in run_parameters tmp_directory
     Args:
-        spreadsheet_df: the full spreadsheet data frame before dropping.
-        unique_gene_names: the genes that will be used after dropping.
-        run_parameters: dictionary of parameters.
+        spreadsheet_df: the full spreadsheet data frame before dropping
+        unique_gene_names: the genes that will be used in calculation
+        run_parameters: dictionary of parameters
     """
     tmp_dir = run_parameters['tmp_directory']
     droplist = spreadsheet_df.loc[~spreadsheet_df.index.isin(unique_gene_names)]
-    file_path = os.path.join(tmp_dir, "droplist_Fisher.txt")
-    droplist.to_csv(file_path, sep='\t')
+    file_path = os.path.join(tmp_dir, file_name)
+    droplist = pd.DataFrame(droplist.index.values)
+    droplist.to_csv(file_path, header=False, index=False)
 
     return
 
