@@ -88,40 +88,40 @@ def extract_network_node_names(network_df):
 
     Returns:
         node_1_names: all names in column 1.
-        node_2_names: all names in column 2.
+        node_list_2: all names in column 2.
     """
-    node_1_names = network_df.values[:, 0]
-    node_2_names = network_df.values[:, 1]
+    node_list_1 = network_df.values[:, 0]
+    node_list_2 = network_df.values[:, 1]
 
-    return node_1_names, node_2_names
+    return node_list_1, node_list_2
 
-def find_unique_node_names(node_1_names, node_2_names):
+def find_unique_node_names(node_list_1, node_list_2):
     """ get the list (set union) of genes in either of the input lists.
 
     Args:
-        node_1_names: list of node names.
-        node_2_names: list of node names.
+        node_list_1: list of node names.
+        node_list_2: list of node names.
 
     Returns:
-        unique_gene_names: unique list of all node names.
+        unique_node_names: unique list of all node names.
     """
-    unique_gene_names = list(set(node_1_names) | set(node_2_names))
+    unique_node_names = list(set(node_list_1) | set(node_list_2))
 
-    return unique_gene_names
+    return unique_node_names
 
-def find_common_node_names(node_1_names, node_2_names):
+def find_common_node_names(node_list_1, node_list_2):
     """ get the list (set intersection) of genes in both of the input lists.
 
     Args:
-        node_1_names: list of node names.
-        node_2_names: list of node names.
+        node_list_1: list of node names.
+        node_list_2: list of node names.
 
     Returns:
-        common_gene_names: unique list of common node names.
+        common_node_names: unique list of common node names.
     """
-    common_gene_names = list(set(node_1_names) & set(node_2_names))
+    common_node_names = list(set(node_list_1) & set(node_list_2))
 
-    return common_gene_names
+    return common_node_names
 
 def extract_spreadsheet_gene_names(spreadsheet_df):
     """ get the list (df.index.values) of all genes in the spreadsheet dataframe.
