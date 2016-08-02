@@ -87,8 +87,8 @@ def extract_network_node_names(network_df):
         node_1_names: all names in column 1
         node_2_names: all names in column 2
     """    
-    node_1_names = set(network_df.values[:, 0])
-    node_2_names = set(network_df.values[:, 1])
+    node_1_names = network_df.values[:, 0]
+    node_2_names = network_df.values[:, 1]
     
     return node_1_names, node_2_names
 
@@ -101,7 +101,7 @@ def find_unique_gene_names(node_1_names, node_2_names):
     Returns:
         unique_gene_names: list of network genes
     """
-    unique_gene_names = list(node_1_names | node_2_names)
+    unique_gene_names = list(set(node_1_names) | set(node_2_names))
 
     return unique_gene_names
     
@@ -114,7 +114,7 @@ def find_common_gene_names(node_1_names, node_2_names):
     Returns:
         common_gene_names: list of network genes
     """
-    common_gene_names = list(node_1_names & node_2_names)
+    common_gene_names = list(set(node_1_names) & set(node_2_names))
 
     return common_gene_names
 
