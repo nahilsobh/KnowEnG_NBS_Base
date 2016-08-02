@@ -16,9 +16,9 @@ import pandas as pd
 import scipy.sparse as spar
 from scipy import stats
 from sklearn.preprocessing import normalize
-import matplotlib.pyplot as plt
-
 from sklearn.cluster import KMeans
+
+import matplotlib.pyplot as plt
 
 def get_run_directory(args):
     """ Read system input arguments (argv) to get the run directory name.
@@ -134,14 +134,14 @@ def extract_spreadsheet_gene_names(spreadsheet_df):
     Returns:
         spreadsheet_gene_names: list of spreadsheet genes.
     """
-    spreadsheet_gene_names = list(set(spreadsheet_df.index.values))  
+    spreadsheet_gene_names = list(set(spreadsheet_df.index.values))
 
     return spreadsheet_gene_names
 
 def write_spreadsheet_droplist(spreadsheet_df, unique_gene_names, run_parameters, file_name):
     """ write list of genes dropped from the input spreadsheed to
         run_parameters['tmp_directory'].file_name.
-        
+
     Args:
         spreadsheet_df: the full spreadsheet data frame before dropping.
         unique_gene_names: the genes that will be used in calculation.
@@ -277,10 +277,10 @@ def create_df_with_sample_labels(sample_names, labels):
 
 def create_all_nodes_reverse_dict(dictionary):
     """ create reverse dictionary (keys > values, values > keys).
-    
+
     Args:
         dictionary: dictionary.
-        
+
     Returns:
         reverse dictionary: dictionary.
     """
@@ -288,11 +288,11 @@ def create_all_nodes_reverse_dict(dictionary):
 
 def combime_dictionaries(dict1, dict2):
     """ combine two dictionaries into one.
-    
+
     Args:
         dict1: dictionary.
         dict2: dictionary.
-        
+
     Returns:
         combined_dictionary: dictionary.
     """
@@ -300,12 +300,12 @@ def combime_dictionaries(dict1, dict2):
 
 def convert_network_df_to_sparse(pg_network_df, row_size, col_size):
     """  convert global network to sparse matrix.
-    
-    Args: 
+
+    Args:
         pg_network_df: property-gene dataframe of global network (3 col)
         row_size: number of rows in sparse outpu
         col_size: number of columns in sparse outpu
-        
+
     Returns:
         pg_network_sparse: sparse matrix of network gene set.
     """
@@ -314,23 +314,22 @@ def convert_network_df_to_sparse(pg_network_df, row_size, col_size):
     data = pg_network_df.values[:, 2]
     pg_network_sparse = spar.csr_matrix(
         (data, (row_iden, col_iden)), shape=(row_size, col_size))
-        
+
     return pg_network_sparse
-    
+
 def run_fisher(run_parameters):
     ''' fisher geneset characterization
-    
+
     Args:
         run_parameters: parameters dictionary
-    ''' 
-    
+    '''
     # -----------------------------------
     # - Data read and extraction Section -
     # -----------------------------------
-    spreadsheet_df        = get_spreadsheet(run_parameters)
-    prop_gene_network_df  = get_network(run_parameters['pg_network_file_name'])
+    spreadsheet_df = get_spreadsheet(run_parameters)
+    prop_gene_network_df = get_network(run_parameters['pg_network_file_name'])
 
-    spreadsheet_gene_names     = extract_spreadsheet_gene_names(spreadsheet_df)
+    spreadsheet_gene_names = extract_spreadsheet_gene_names(spreadsheet_df)
     prop_gene_network_n1_names,\
     prop_gene_network_n2_names = extract_network_node_names(prop_gene_network_df)
 
@@ -339,43 +338,51 @@ def run_fisher(run_parameters):
     # -----------------------------------------------------------------------
     common_gene_names = find_common_node_names(prop_gene_network_n2_names, spreadsheet_gene_names)
 
-    common_gene_names_dict                  = create_node_names_dictionary(common_gene_names)
-    prop_gene_network_n1_names_dict         = create_node_names_dictionary(prop_gene_network_n1_names)
-    reverse_prop_gene_network_n1_names_dict = create_all_nodes_reverse_dict(prop_gene_network_n1_names_dict)
+    common_gene_names_dict = create_node_names_dictionary(common_gene_names)
+    prop_gene_network_n1_names_dict = create_node_names_dictionary(prop_gene_network_n1_names)
+    reverse_prop_gene_network_n1_names_dict = create_all_nodes_reverse_dict(
+        prop_gene_network_n1_names_dict)
 
     # ----------------------------------------------------------------------------
     # - restrict spreadsheet and network to common genes and drop everthing else -
     # ----------------------------------------------------------------------------
-    spreadsheet_df        = update_spreadsheet(spreadsheet_df, common_gene_names_dict)
-    prop_gene_network_df  = update_network(prop_gene_network_df, prop_gene_network_n1_names_dict, "node_1")
-    prop_gene_network_df  = update_network(prop_gene_network_df, common_gene_names_dict, "node_2")
+    spreadsheet_df = update_spreadsheet(spreadsheet_df, common_gene_names_dict)
+    prop_gene_network_df = update_network(
+        prop_gene_network_df, prop_gene_network_n1_names_dict, "node_1")
+    prop_gene_network_df = update_network(prop_gene_network_df, common_gene_names_dict, "node_2")
 
     # ----------------------------------------------------------------------------
     # - map every gene name to an integer index in sequential order startng at 0 -
     # ----------------------------------------------------------------------------
-    prop_gene_network_df = map_node_names_to_index(prop_gene_network_df, prop_gene_network_n1_names_dict, "node_1")
-    prop_gene_network_df = map_node_names_to_index(prop_gene_network_df, common_gene_names_dict, "node_2")
+    prop_gene_network_df = map_node_names_to_index(
+        prop_gene_network_df, prop_gene_network_n1_names_dict, "node_1")
+    prop_gene_network_df = map_node_names_to_index(
+        prop_gene_network_df, common_gene_names_dict, "node_2")
 
     # --------------------------------------------
     # - store the network in a csr sparse format -
     # --------------------------------------------
     unique_property_names_length = len(prop_gene_network_n1_names_dict)
-    prop_gene_network_sparse = convert_network_df_to_sparse(prop_gene_network_df, len(common_gene_names), unique_property_names_length)
+    prop_gene_network_sparse = convert_network_df_to_sparse(
+        prop_gene_network_df, len(common_gene_names), unique_property_names_length)
 
     # ----------------------
     # - fisher exact test  -
     # ----------------------
     results_dir = run_parameters['results_directory']
     spreadsheet_mat = spreadsheet_df.as_matrix()
-    universe_count  = len(common_gene_names)
-    perform_fisher_exact_test(prop_gene_network_sparse, reverse_prop_gene_network_n1_names_dict, spreadsheet_mat, universe_count, results_dir)
+    universe_count = len(common_gene_names)
+    perform_fisher_exact_test(
+        prop_gene_network_sparse, reverse_prop_gene_network_n1_names_dict,
+        spreadsheet_mat, universe_count, results_dir)
 
     return
 
 
-def perform_fisher_exact_test(sparse_matrix, property_idx_reverse_dict, user_set_input, universe_count, tmp_dir):
+def perform_fisher_exact_test(
+        sparse_matrix, property_idx_reverse_dict, user_set_input, universe_count, tmp_dir):
     """ cnetral loop: compute components for fisher exact test.
-    
+
     Args:
         sparse_matrix: sparse matrix of network gene set.
         property_idx_reverse_dict: look up table of sparse matrix.
@@ -397,17 +404,18 @@ def perform_fisher_exact_test(sparse_matrix, property_idx_reverse_dict, user_set
             table = build_contigency_table(overlap_count[i], user_count, gene_count[0, i], count)
             oddsratio, pvalue = stats.fisher_exact(table, alternative="greater")
             if overlap_count[i] != 0:
-                row_item = [col, property_idx_reverse_dict[i], int(count), int(user_count), int(gene_count[0, i]), int(overlap_count[i]), pvalue]
+                row_item = [col, property_idx_reverse_dict[i], int(count),
+                            int(user_count), int(gene_count[0, i]), int(overlap_count[i]), pvalue]
                 df_val.append(row_item)
     df_col = ["user gene", "property", "count", "user count", "gene count", "overlap", "pval"]
     result_df = pd.DataFrame(df_val, columns=df_col).sort_values("pval", ascending=1)
     save_result(result_df, tmp_dir, "fisher_result.txt")
-    
+
     return
-    
+
 def save_result(result_df, tmp_dir, file_name):
     """ save the result of DRaWR in tmp directory, file_name.
-    
+
     Args:
         rw_result_df: dataframe of random walk result.
         tmp_dir: directory to save the result file.
@@ -420,12 +428,13 @@ def save_result(result_df, tmp_dir, file_name):
 
 def build_contigency_table(overlap_count, user_count, gene_count, count):
     """ build contigency table for fisher exact test.
-    
+
     Args:
         overlap_count: count of overlaps in user gene set and network gene set.
         user_count: count of ones in user gene set.
         gene_count: count of ones in network gene set.
         count: number of universe genes.
+
     Returns:
         table: the contigency table used in fisher test.
     """
@@ -434,18 +443,19 @@ def build_contigency_table(overlap_count, user_count, gene_count, count):
     table[0, 1] = user_count - table[0, 0]
     table[1, 0] = gene_count - table[0, 0]
     table[1, 1] = count - user_count - gene_count + table[0, 0]
-    
+
     return table
 
 def run_DRaWR(run_parameters):
-    """This is DRaWR function.
+    """ wrapper: call sequence to perform DRaWR - random walk with restart.
+
     Args:
-        run_parameters: dictionary containing fisher parameters.
-    """    
+        run_parameters: parameters dictionary.
+    """
     property_gene_df = get_network(run_parameters["property_edge_file_name"])
     gene_gene_df = get_network(run_parameters["network_file_name"])
 
-    
+
     gene_1_names, gene_2_names = extract_network_node_names(gene_gene_df)
     property_names, extra_genes_names = extract_network_node_names(property_gene_df)
 
@@ -461,8 +471,8 @@ def run_DRaWR(run_parameters):
     property_gene_df = map_node_names_to_index(property_gene_df, genes_map, 'node_2')
 
     gene_gene_df = symmetrize_df(gene_gene_df)
-    gene_gene_df = normalize_df(gene_gene_df, 'wt', 1)
-    property_gene_df = normalize_df(property_gene_df, 'wt', 2)
+    gene_gene_df = normalize_df(gene_gene_df, 'wt')
+    property_gene_df = normalize_df(property_gene_df, 'wt')
     property_gene_df = symmetrize_df(property_gene_df)
 
     #compose N, P, P'
@@ -479,29 +489,30 @@ def run_DRaWR(run_parameters):
     new_user_gene_df = update_spreadsheet(user_gene_df, union_all)
 
     #create sparse matrix for DRaWR
-    sparse_matrix = convert_df_to_sparse(sparse_network, len(union_all), len(union_all))
+    sparse_matrix = convert_network_df_to_sparse(sparse_network, len(union_all), len(union_all))
     perform_DRaWR(sparse_matrix, new_user_gene_df, len(gene_union), run_parameters)
-    
+
     return
-    
+
 def perform_DRaWR(sparse_m, user_df, len_gene, run_parameters):
-    """This is to perform random walk.
-    Perform random walk given global network and
-    user set gene sets.
+    """ calculate random walk with global network and user set gene sets  and write output.
+
     Args:
         sparse_m: sparse matrix of global network.
         user_df: dataframe of user gene sets.
-        len_genes: length of genes in the in the user spreadsheet.
-        run_parameters: dictionary of session parameters.
+        len_gene: length of genes in the in the user spreadsheet.
+        run_parameters: parameters dictionary.
     """
 
     tmp_dir = run_parameters['results_directory']
     hetero_network = normalize(sparse_m, norm='l1', axis=0)
     new_user_df = append_baseline_to_spreadsheet(user_df, len_gene)
     new_user_matrix = normalize(new_user_df, norm='l1', axis=0)
-    
-    final_user_matrix, step = smooth_spreadsheet_with_rwr(new_user_matrix, hetero_network, run_parameters)
-    final_user_df = pd.DataFrame(final_user_matrix, index=new_user_df.index.values, columns=new_user_df.columns.values)
+
+    final_user_matrix, step = smooth_spreadsheet_with_rwr(
+        new_user_matrix, hetero_network, run_parameters)
+    final_user_df = pd.DataFrame(
+        final_user_matrix, index=new_user_df.index.values, columns=new_user_df.columns.values)
     final_user_df = final_user_df.iloc[len_gene:]
     for col in final_user_df.columns.values[:-1]:
         final_user_df[col] = final_user_df[col] - final_user_df['base']
@@ -509,42 +520,44 @@ def perform_DRaWR(sparse_m, user_df, len_gene, run_parameters):
 
     final_user_df['base'] = final_user_df.sort_values('base', ascending=0).index.values
     save_result(final_user_df, tmp_dir, "rw_result.txt")
-    
+
     return
 
 def append_baseline_to_spreadsheet(user_df, len_gene):
-    """This is to modify user spreadsheet.
-    Append baseline vector to the user spreadsheet matrix.
+    """ append baseline vector of the user spreadsheet matrix.
+
     Args:
-        user_df: dataframe of user spreadsheet.
+        user_df: user spreadsheet dataframe.
         len_gene: length of genes in the user spreadsheet.
+
     Returns:
-        user_df: new dataframe with baseline vector
-        appended in the last column.
+        user_df: new dataframe with baseline vector appended in the last column.
     """
     property_size = user_df.shape[0] - len_gene
     user_df["base"] = np.append(np.ones(len_gene), np.zeros(property_size))
-    
+
     return user_df
 
 def normalize_df(network_df, node_id):
     """ normalize the network column with numbers for input.
+
     Args:
         network_df: network dataframe.
         node_id: column name
-        n: coefficient 
+
     Returns:
         network_df: the same dataframe with weight normalized.
     """
     network_df[node_id] /= network_df[node_id].sum()
-    
+
     return network_df
 
 def form_hybrid_network(list_of_networks):
-    """This function concatenates a list of networks.
+    """ concatenate a list of networks.
+
     Args:
         list_of_networks: a list of networks to join
-    
+
     Returns:
         a combined hybrid network
     """
