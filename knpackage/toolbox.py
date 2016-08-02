@@ -189,25 +189,6 @@ def create_node_names_dictionary(gene_names, start_value=0):
 
     return node_names_dictionary
 
-    """
-def symmetrize_df(network_df):
-    create matrix symmetry by appending network data frame to itself while
-        swapping col 0 and col 1 in the bottom half
-
-    Args:
-        network_df: 3 or 4 column pandas data frame
-
-    Returns:
-        symm_network_df:
-
-    n_df = network_df.copy()
-    n_df.loc[n_df.index[:], n_df.columns[0]] = network_df.loc[n_df.index[:], n_df.columns[1]]
-    n_df.loc[n_df.index[:], n_df.columns[1]] = network_df.loc[n_df.index[:], n_df.columns[0]]
-    symm_network_df = pd.concat([network_df, n_df])
-    symm_network_df.index = np.arange(0, symm_network_df.shape[0])
-
-    return symm_network_df
-    """
 def symmetrize_df(network):
     """This function symmetrizes the network in sparse form
     
