@@ -1243,7 +1243,7 @@ def save_clusters(sample_names, labels, run_parameters):
 
     return
 
-def now_name(name_base, name_extension, time_step=1e6):
+def now_name(name_base, name_extension, run_parameters=None):
     """ insert a time stamp into the filename_ before .extension.
 
     Args:
@@ -1254,7 +1254,12 @@ def now_name(name_base, name_extension, time_step=1e6):
     Returns:
         time_stamped_file_name: concatenation of the inputs with time-stamp.
     """
-    nstr = time.strftime("%a_%d_%b_%Y_%H_%M_%S", time.localtime())
+    if run_parameters is None:
+        nstr = time.strftime("%a_%d_%b_%Y_%H_%M_%S", time.localtime())
+    else:
+        time_step = run_parameters['use_now_name']
+        nstr = np.str_(int(time.time() * time_step))
+        
     time_stamped_file_name = name_base + '_' + nstr + '.' + name_extension
 
     return time_stamped_file_name
