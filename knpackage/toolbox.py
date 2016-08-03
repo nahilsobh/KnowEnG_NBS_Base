@@ -1254,7 +1254,7 @@ def now_name(name_base, name_extension, time_step=1e6):
     Returns:
         time_stamped_file_name: concatenation of the inputs with time-stamp.
     """
-    nstr = np.str_(int(time.time() * time_step))
+    nstr = time.strftime("%a_%d_%b_%Y_%H_%M_%S", time.localtime())
     time_stamped_file_name = name_base + '_' + nstr + '.' + name_extension
 
     return time_stamped_file_name
