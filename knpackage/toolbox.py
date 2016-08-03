@@ -446,7 +446,7 @@ def build_contigency_table(overlap_count, user_count, gene_count, count):
 
     return table
 
-def run_DraWR(run_parameters):
+def run_DRaWR(run_parameters):
     spreadsheet_df = get_spreadsheet(run_parameters)
     pg_network_df  = get_network(run_parameters['pg_network_file_name'])
     gg_network_df  = get_network(run_parameters['gg_network_file_name'])
@@ -609,8 +609,6 @@ def run_fisher(run_parameters):
     perform_fisher_exact_test(prop_gene_network_sparse, reverse_prop_gene_network_n1_names_dict, spreadsheet_df, universe_count, results_dir)
 
     return
-=======
->>>>>>> f375bb8ffb8dba3c1b39b10b80aa56d9e38116cb
 
 def run_nmf(run_parameters):
     """ wrapper: call sequence to perform non-negative matrix factorization and write results.
