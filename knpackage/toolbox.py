@@ -20,7 +20,7 @@ from sklearn.cluster import KMeans
 
 import matplotlib.pyplot as plt
 
-def get_run_directory(args):
+def get_run_directory_and_file(args):
     """ Read system input arguments (argv) to get the run directory name.
 
     Args:
@@ -31,12 +31,14 @@ def get_run_directory(args):
     """
     parser = argparse.ArgumentParser()
     parser.add_argument('-run_directory', type=str)
+    parser.add_argument('-run_file', type=str)
     args = parser.parse_args()
     run_directory = args.run_directory
+    run_file = args.run_file
 
-    return run_directory
+    return run_directory, run_file
 
-def get_run_parameters(run_directory):
+def get_run_parameters(run_directory, run_file):
     """ Read system input arguments run directory name and run_file into a dictionary.
 
     Args:
@@ -45,10 +47,11 @@ def get_run_parameters(run_directory):
     Returns:
         run_parameters: python dictionary of name - value parameters.
     """
-    run_file_name = os.path.join(run_directory, "run_file")
+    run_file_name = os.path.join(run_directory, run_file)
     par_set_df = pd.read_csv(run_file_name, sep='\t', header=None, index_col=0)
     run_parameters = par_set_df.to_dict()[1]
     run_parameters["run_directory"] = run_directory
+    run_parameters["run_file"] = run_file
 
     return run_parameters
 
