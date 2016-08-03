@@ -671,7 +671,7 @@ def run_cc_net_nmf(run_parameters):
 
     spreadsheet_df = update_spreadsheet(spreadsheet_df, unique_gene_names)
     spreadsheet_mat = spreadsheet_df.as_matrix()
-    sample_names = spreadsheet_du.columns
+    sample_names = spreadsheet_df.columns
 
     find_and_save_net_nmf_clusters(network_mat, spreadsheet_mat, lap_diag, lap_pos, run_parameters)
 
