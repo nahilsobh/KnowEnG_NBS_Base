@@ -364,7 +364,7 @@ def build_contigency_table(overlap_count, user_count, gene_count, count):
         overlap_count: count of overlapped ones in user
         gene set and network gene set.
         user_count: count of ones in user gene set.
-        gene_count: count of ones in network gene set.
+        gene_count: count of ones in network gene set
         count: number of universe genes.
     Returns:
         table: the contigency table used in fisher test.
@@ -377,11 +377,51 @@ def build_contigency_table(overlap_count, user_count, gene_count, count):
     
     return table
 
-def run_DRaWR(run_parameters):
-    """This is DRaWR function.
-    Parameters:
-        run_parameters: dictionary containing fisher parameters.
-    """    
+def run_DraWR(run_parameters):
+    spreadsheet_df = get_spreadsheet(run_parameters)
+    pg_network_df  = get_network(run_parameters['pg_network_file_name'])
+    gg_network_df  = get_network(run_parameters['gg_network_file_name'])
+
+    pg_network_n1_names,\
+    pg_network_n2_names = extract_network_node_names(pg_network_df)
+
+    gg_network_n1_names,\
+    gg_network_n2_names = extract_network_node_names(gg_network_df)
+
+    # limit the gene set to the intersection of networks (gene_gene and prop_gene) and user gene set
+    unique_gene_names     = find_unique_node_names(gg_network_n1_names, gg_network_n2_names)
+    unique_gene_names     = find_unique_node_names(unique_gene_names, pg_network_n2_names)
+    unique_all_node_names = unique_gene_names + pg_network_n1_names
+   # unique_all_node_names = find_unique_gene_names(unique_gene_names, pg_network_n1_names)
+    
+    unique_gene_names_dict   = create_node_names_dictionary(unique_gene_names)
+    pg_network_n1_names_dict = create_node_names_dictionary(pg_network_n1_names,len(unique_gene_names))
+
+    # restrict spreadsheet to unique genes and drop everthing else
+    spreadsheet_df = update_spreadsheet(spreadsheet_df, unique_all_node_names)
+    # map every gene name to a sequential integer index
+    gg_network_df = map_node_names_to_index(gg_network_df,unique_gene_names_dict, "node_1")
+    gg_network_df = map_node_names_to_index(gg_network_df,unique_gene_names_dict, "node_2")
+    pg_network_df = map_node_names_to_index(pg_network_df,pg_network_n1_names_dict, "node_1")
+    pg_network_df = map_node_names_to_index(pg_network_df,unique_gene_names_dict, "node_2")
+    
+    gg_network_df = symmetrize_df(gg_network_df)
+    pg_network_df = symmetrize_df(pg_network_df)
+    
+    gg_network_df = normalize_df(gg_network_df,'wt')
+    pg_network_df = normalize_df(pg_network_df,'wt')
+    
+    hybrid_network_df = form_hybrid_network([gg_network_df, pg_network_df])
+    
+    # store the network in a csr sparse format
+    network_sparse = convert_network_df_to_sparse(hybrid_network_df, len(unique_all_node_names), len(unique_all_node_names))
+    
+    perform_DRaWR(network_sparse, spreadsheet_df, len(unique_gene_names), run_parameters)
+
+
+
+"""
+def que_all_node_names = unique_gene_names + pg_network_n1_namesrun_DRaWR(run_parameters):
     property_gene_df = get_network(run_parameters["property_edge_file_name"])
     gene_gene_df = get_network(run_parameters["network_file_name"])
 
@@ -423,7 +463,7 @@ def run_DRaWR(run_parameters):
     perform_DRaWR(sparse_matrix, new_user_gene_df, len(gene_union), run_parameters)
     
     return
-    
+"""    
 def perform_DRaWR(sparse_m, user_df, len_gene, run_parameters):
     """This is to perform random walk.
     Perform random walk given global network and
@@ -532,7 +572,6 @@ def run_fisher(run_parameters):
     # --------------------------------------------
     # - store the network in a csr sparse format -
     # --------------------------------------------
-    print( len(common_gene_names),len(prop_gene_network_n1_names) )
     prop_gene_network_sparse = convert_network_df_to_sparse(prop_gene_network_df, len(common_gene_names),len(prop_gene_network_n1_names) )
 
     # ----------------------
@@ -543,9 +582,6 @@ def run_fisher(run_parameters):
     perform_fisher_exact_test(prop_gene_network_sparse, reverse_prop_gene_network_n1_names_dict, spreadsheet_df, universe_count, results_dir)
 
     return
-
-
-
 
 def run_nmf(run_parameters):
     """ wrapper: call sequence to perform non-negative matrix factorization and write results.
@@ -667,7 +703,7 @@ def run_cc_net_nmf(run_parameters):
 
     spreadsheet_df = update_spreadsheet(spreadsheet_df, unique_gene_names)
     spreadsheet_mat = spreadsheet_df.as_matrix()
-    sample_names = spreadsheet_df.columns
+    sample_names = spreadsheet_du.columns
 
     find_and_save_net_nmf_clusters(network_mat, spreadsheet_mat, lap_diag, lap_pos, run_parameters)
 
