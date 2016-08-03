@@ -500,9 +500,11 @@ def form_hybrid_network(list_of_networks):
 
 
 def run_fisher(run_parameters):
-
-    '''fisher geneset characterization''' 
+    ''' fisher geneset characterization
     
+    Args:
+        run_parameters: dictionary of run parameters
+    ''' 
     # -----------------------------------
     # - Data read and extractio Section -
     # -----------------------------------
