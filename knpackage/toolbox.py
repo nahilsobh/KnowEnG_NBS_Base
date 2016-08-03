@@ -320,68 +320,6 @@ def convert_network_df_to_sparse(pg_network_df, row_size, col_size):
 
     return pg_network_sparse
 
-def run_fisher(run_parameters):
-    ''' fisher geneset characterization
-
-    Args:
-        run_parameters: parameters dictionary
-    '''
-    # -----------------------------------
-    # - Data read and extraction Section -
-    # -----------------------------------
-    spreadsheet_df = get_spreadsheet(run_parameters)
-    prop_gene_network_df = get_network(run_parameters['pg_network_file_name'])
-
-    spreadsheet_gene_names = extract_spreadsheet_gene_names(spreadsheet_df)
-    prop_gene_network_n1_names,\
-    prop_gene_network_n2_names = extract_network_node_names(prop_gene_network_df)
-
-    # -----------------------------------------------------------------------
-    # - limit the gene set to the intersection of network and user gene set -
-    # -----------------------------------------------------------------------
-    common_gene_names = find_common_node_names(prop_gene_network_n2_names, spreadsheet_gene_names)
-
-    common_gene_names_dict = create_node_names_dictionary(common_gene_names)
-    prop_gene_network_n1_names_dict = create_node_names_dictionary(prop_gene_network_n1_names)
-    reverse_prop_gene_network_n1_names_dict = create_all_nodes_reverse_dict(
-        prop_gene_network_n1_names_dict)
-
-    # ----------------------------------------------------------------------------
-    # - restrict spreadsheet and network to common genes and drop everthing else -
-    # ----------------------------------------------------------------------------
-    spreadsheet_df = update_spreadsheet(spreadsheet_df, common_gene_names_dict)
-    prop_gene_network_df = update_network(
-        prop_gene_network_df, prop_gene_network_n1_names_dict, "node_1")
-    prop_gene_network_df = update_network(prop_gene_network_df, common_gene_names_dict, "node_2")
-
-    # ----------------------------------------------------------------------------
-    # - map every gene name to an integer index in sequential order startng at 0 -
-    # ----------------------------------------------------------------------------
-    prop_gene_network_df = map_node_names_to_index(
-        prop_gene_network_df, prop_gene_network_n1_names_dict, "node_1")
-    prop_gene_network_df = map_node_names_to_index(
-        prop_gene_network_df, common_gene_names_dict, "node_2")
-
-    # --------------------------------------------
-    # - store the network in a csr sparse format -
-    # --------------------------------------------
-    unique_property_names_length = len(prop_gene_network_n1_names_dict)
-    prop_gene_network_sparse = convert_network_df_to_sparse(
-        prop_gene_network_df, len(common_gene_names), unique_property_names_length)
-
-    # ----------------------
-    # - fisher exact test  -
-    # ----------------------
-    results_dir = run_parameters['results_directory']
-    spreadsheet_mat = spreadsheet_df.as_matrix()
-    universe_count = len(common_gene_names)
-    perform_fisher_exact_test(
-        prop_gene_network_sparse, reverse_prop_gene_network_n1_names_dict,
-        spreadsheet_mat, universe_count, results_dir)
-
-    return
-
-
 def perform_fisher_exact_test(
         sparse_matrix, property_idx_reverse_dict, user_set_input, universe_count, tmp_dir):
     """ cnetral loop: compute components for fisher exact test.
