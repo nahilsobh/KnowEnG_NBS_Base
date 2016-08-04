@@ -249,20 +249,6 @@ def convert_df_to_sparse(network_df, matrix_length):
 
     return network_sparse
 
-def save_cc_net_nmf_result(consensus_matrix, sample_names, labels, run_parameters):
-    """ write the results of network based nmf consensus clustering to output files.
-
-    Args:
-        consensus_matrix: sample_names x labels - symmetric consensus matrix.
-        sample_names: spreadsheet column names.
-        labels: cluster assignments for column names (or consensus matrix).
-        run_parameters: dictionary with "results_directory" key.
-    """
-    write_consensus_matrix(consensus_matrix, sample_names, labels, run_parameters)
-    save_clusters(sample_names, labels, run_parameters)
-
-    return
-
 def create_df_with_sample_labels(sample_names, labels):
     """ create dataframe from spreadsheet column names with cluster number assignments.
 
@@ -302,7 +288,7 @@ def combime_dictionaries(dict1, dict2):
     return dict(dict1.items() + dict2.items())
 
 def convert_network_df_to_sparse(pg_network_df, row_size, col_size):
-    """  convert global network to sparse matrix.
+    """ convert global network to sparse matrix.
 
     Args:
         pg_network_df: property-gene dataframe of global network (3 col)
@@ -323,7 +309,7 @@ def convert_network_df_to_sparse(pg_network_df, row_size, col_size):
 def perform_fisher_exact_test(
         prop_gene_network_sparse, reverse_prop_gene_network_n1_names_dict,
         spreadsheet_df, universe_count, results_dir):
-    """ cnetral loop: compute components for fisher exact test.
+    """ central loop: compute components for fisher exact test.
 
     Args:
         prop_gene_network_sparse: sparse matrix of network gene set.
@@ -342,10 +328,12 @@ def perform_fisher_exact_test(
         user_count = np.sum(new_user_set.values)
         overlap_count = prop_gene_network_sparse.T.dot(new_user_set.values)
         pval_overlap = np.zeros(len(reverse_prop_gene_network_n1_names_dict))
+
         for i, item_pval in enumerate(pval_overlap):
             table = build_contigency_table(
                 overlap_count[i], user_count, gene_count[0, i], universe_count)
             oddsratio, pvalue = stats.fisher_exact(table, alternative="greater")
+
             if overlap_count[i] != 0:
                 row_item = [col, reverse_prop_gene_network_n1_names_dict[i], int(universe_count),
                             int(user_count), int(gene_count[0, i]), int(overlap_count[i]), pvalue]
@@ -409,8 +397,6 @@ def run_DRaWR(run_parameters):
     unique_gene_names = find_unique_node_names(gg_network_n1_names, gg_network_n2_names)
     unique_gene_names = find_unique_node_names(unique_gene_names, pg_network_n2_names)
     unique_all_node_names = unique_gene_names + pg_network_n1_names
-    # unique_all_node_names = find_unique_gene_names(unique_gene_names, pg_network_n1_names)
-
     unique_gene_names_dict = create_node_names_dictionary(unique_gene_names)
     pg_network_n1_names_dict = create_node_names_dictionary(
         pg_network_n1_names, len(unique_gene_names))
@@ -609,8 +595,7 @@ def run_cc_nmf(run_parameters):
     labels = kmeans_cluster_consensus_matrix(consensus_matrix, int(run_parameters['k']))
 
     sample_names = spreadsheet_df.columns
-    write_consensus_matrix(consensus_matrix, sample_names, labels, run_parameters)
-    save_clusters(sample_names, labels, run_parameters)
+    save_consensus_cluster_result(consensus_matrix, sample_names, labels, run_parameters)
 
     if int(run_parameters['display_clusters']) != 0:
         display_clusters(form_consensus_matrix_graphic(consensus_matrix, int(run_parameters['k'])))
@@ -694,7 +679,7 @@ def run_cc_net_nmf(run_parameters):
         run_parameters, linkage_matrix, indicator_matrix)
     labels = kmeans_cluster_consensus_matrix(consensus_matrix, int(run_parameters['k']))
 
-    save_cc_net_nmf_result(consensus_matrix, sample_names, labels, run_parameters)
+    save_consensus_cluster_result(consensus_matrix, sample_names, labels, run_parameters)
 
     if int(run_parameters['display_clusters']) != 0:
         display_clusters(form_consensus_matrix_graphic(consensus_matrix, int(run_parameters['k'])))
@@ -702,7 +687,7 @@ def run_cc_net_nmf(run_parameters):
     return
 
 def find_and_save_net_nmf_clusters(network_mat, spreadsheet_mat, lap_dag, lap_val, run_parameters):
-    """ cnetral loop: compute components for the consensus matrix from the input
+    """ central loop: compute components for the consensus matrix from the input
         network and spreadsheet matrices and save them to temp files.
 
     Args:
@@ -729,7 +714,7 @@ def find_and_save_net_nmf_clusters(network_mat, spreadsheet_mat, lap_dag, lap_va
     return
 
 def find_and_save_nmf_clusters(spreadsheet_mat, run_parameters):
-    """ cnetral loop: compute components for the consensus matrix by
+    """ central loop: compute components for the consensus matrix by
         non-negative matrix factorization.
 
     Args:
@@ -767,7 +752,7 @@ def save_temporary_cluster(h_matrix, sample_permutation, run_parameters, sequenc
     return
 
 def form_indicator_matrix(run_parameters, indicator_matrix):
-    """ read bootstrap temp_p files saved by central loop and compute the indicator_matrix.
+    """ read bootstrap temp_p* files and compute the indicator_matrix.
 
     Args:
         run_parameters: parameter set dictionary.
@@ -786,7 +771,7 @@ def form_indicator_matrix(run_parameters, indicator_matrix):
     return indicator_matrix
 
 def form_linkage_matrix(run_parameters, linkage_matrix):
-    """ read bootstrap temp_h files compute the linkage_matrix.
+    """ read bootstrap temp_h* files compute the linkage_matrix.
 
     Args:
         run_parameters: parameter set dictionary.
@@ -808,7 +793,7 @@ def form_linkage_matrix(run_parameters, linkage_matrix):
 
 def form_consensus_matrix(run_parameters, linkage_matrix, indicator_matrix):
     """ compute the consensus matrix from the indicator and linkage matrix inputs
-        and the "temp_*" files stored in run_parameters["tmp_directory"].
+        formed by the bootstrap "temp_*" files.
 
     Args:
         run_parameters: parameter set dictionary with "tmp_directory" key.
@@ -831,7 +816,7 @@ def normalized_matrix(network_mat):
         network_mat: symmetric matrix.
 
     Returns:
-        network_mat: input matrix - renomralized s.t sum of row or col ~= 1.
+        network_mat: renomralized such that the sum of any row or col is about 1.
     """
     row_sm = np.array(network_mat.sum(axis=0))
     row_sm = 1.0 / row_sm
@@ -874,7 +859,7 @@ def pick_a_sample(spreadsheet_mat, percent_sample):
 
     Returns:
         sample_random: A specified precentage sample of the spread sheet.
-        sample_permutation: the array that correponds to random sample.
+        sample_permutation: the array that correponds to columns sample.
     """
     features_size = int(np.round(spreadsheet_mat.shape[0] * (1-percent_sample)))
     features_permutation = np.random.permutation(spreadsheet_mat.shape[0])
@@ -1204,6 +1189,20 @@ def display_clusters(consensus_matrix):
 
     return
 
+def save_consensus_cluster_result(consensus_matrix, sample_names, labels, run_parameters):
+    """ write the results of network based nmf consensus clustering to output files.
+
+    Args:
+        consensus_matrix: sample_names x labels - symmetric consensus matrix.
+        sample_names: spreadsheet column names.
+        labels: cluster assignments for column names (or consensus matrix).
+        run_parameters: dictionary with "results_directory" key.
+    """
+    write_consensus_matrix(consensus_matrix, sample_names, labels, run_parameters)
+    save_clusters(sample_names, labels, run_parameters)
+
+    return
+
 def write_consensus_matrix(consensus_matrix, sample_names, labels, run_parameters):
     """ write the consensus matrix as a dataframe with sample_names column lablels
         and cluster labels as row labels.
@@ -1249,15 +1248,17 @@ def now_name(name_base, name_extension, run_parameters=None):
     Args:
         name_base: file name first part - may include directory path.
         name_extension: file extension without a period.
-        time_step: minimum time between two time stamps.
+        run_parameters: run_parameters['use_now_name'] >= 1 and <= 100000
 
     Returns:
         time_stamped_file_name: concatenation of the inputs with time-stamp.
     """
+    MAX_STEP = 1e6
+    MIN_STEP = 1
     if run_parameters is None:
         nstr = time.strftime("%a_%d_%b_%Y_%H_%M_%S", time.localtime())
     else:
-        time_step = run_parameters['use_now_name']
+        time_step = min(max(run_parameters['use_now_name'], MIN_STEP), MAX_STEP)
         nstr = np.str_(int(time.time() * time_step))
         
     time_stamped_file_name = name_base + '_' + nstr + '.' + name_extension
