@@ -744,9 +744,10 @@ def save_temporary_cluster(h_matrix, sample_permutation, run_parameters, sequenc
         sequence_number: temporary file name suffix.
     """
     tmp_dir = run_parameters["tmp_directory"]
-    hname = os.path.join(tmp_dir, ('temp_h' + str(sequence_number)))
+    time_stamp = now_name('_N', str(sequence_number), run_parameters)
+    hname = os.path.join(tmp_dir, 'temp_h'+time_stamp)
     h_matrix.dump(hname)
-    pname = os.path.join(tmp_dir, ('temp_p' + str(sequence_number)))
+    pname = os.path.join(tmp_dir, 'temp_p'+time_stamp)
     sample_permutation.dump(pname)
 
     return
@@ -762,11 +763,19 @@ def form_indicator_matrix(run_parameters, indicator_matrix):
         indicator_matrix: input summed with "temp_p*" files in run_parameters["tmp_directory"].
     """
     tmp_dir = run_parameters["tmp_directory"]
-    number_of_bootstraps = int(run_parameters["number_of_bootstraps"])
-    for sample in range(0, number_of_bootstraps):
-        pname = os.path.join(tmp_dir, ('temp_p' + str(sample)))
-        sample_permutation = np.load(pname)
-        indicator_matrix = update_indicator_matrix(sample_permutation, indicator_matrix)
+    dir_list = os.listdir(tmp_dir)
+    for f in dir_list:
+        if f[0:6] == 'temp_p':
+            pname = os.path.join(tmp_dir, f)
+            sample_permutation = np.load(pname)
+            indicator_matrix = update_indicator_matrix(sample_permutation, indicator_matrix)
+    
+    #tmp_dir = run_parameters["tmp_directory"]        
+    #number_of_bootstraps = int(run_parameters["number_of_bootstraps"])
+    #for sample in range(0, number_of_bootstraps):
+        #pname = os.path.join(tmp_dir, ('temp_p' + str(sample)))
+        #sample_permutation = np.load(pname)
+        #indicator_matrix = update_indicator_matrix(sample_permutation, indicator_matrix)
 
     return indicator_matrix
 
@@ -781,13 +790,23 @@ def form_linkage_matrix(run_parameters, linkage_matrix):
         linkage_matrix: input summed with "temp_h*" files in run_parameters["tmp_directory"].
     """
     tmp_dir = run_parameters["tmp_directory"]
-    number_of_bootstraps = int(run_parameters["number_of_bootstraps"])
-    for sample in range(0, number_of_bootstraps):
-        hname = os.path.join(tmp_dir, ('temp_h' + str(sample)))
-        h_mat = np.load(hname)
-        pname = os.path.join(tmp_dir, ('temp_p' + str(sample)))
-        sample_permutation = np.load(pname)
-        linkage_matrix = update_linkage_matrix(h_mat, sample_permutation, linkage_matrix)
+    dir_list = os.listdir(tmp_dir)
+    for f in dir_list:
+        if f[0:6] == 'temp_p':
+            pname = os.path.join(tmp_dir, f)
+            sample_permutation = np.load(pname)
+            hname = os.path.join(tmp_dir, f[0:5] + 'h' + f[6:len(f)])
+            h_mat = np.load(hname)
+            linkage_matrix = update_linkage_matrix(h_mat, sample_permutation, linkage_matrix)
+    
+    #tmp_dir = run_parameters["tmp_directory"]
+    #number_of_bootstraps = int(run_parameters["number_of_bootstraps"])
+    #for sample in range(0, number_of_bootstraps):
+        #hname = os.path.join(tmp_dir, ('temp_h' + str(sample)))
+        #h_mat = np.load(hname)
+        #pname = os.path.join(tmp_dir, ('temp_p' + str(sample)))
+        #sample_permutation = np.load(pname)
+        #linkage_matrix = update_linkage_matrix(h_mat, sample_permutation, linkage_matrix)
 
     return linkage_matrix
 
@@ -1258,7 +1277,7 @@ def now_name(name_base, name_extension, run_parameters=None):
     if run_parameters is None:
         nstr = time.strftime("%a_%d_%b_%Y_%H_%M_%S", time.localtime())
     else:
-        time_step = min(max(run_parameters['use_now_name'], MIN_STEP), MAX_STEP)
+        time_step = min(max(int(run_parameters['use_now_name']), MIN_STEP), MAX_STEP)
         nstr = np.str_(int(time.time() * time_step))
         
     time_stamped_file_name = name_base + '_' + nstr + '.' + name_extension
