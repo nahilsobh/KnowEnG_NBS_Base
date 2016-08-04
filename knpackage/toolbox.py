@@ -764,49 +764,33 @@ def form_indicator_matrix(run_parameters, indicator_matrix):
     """
     tmp_dir = run_parameters["tmp_directory"]
     dir_list = os.listdir(tmp_dir)
-    for f in dir_list:
-        if f[0:6] == 'temp_p':
-            pname = os.path.join(tmp_dir, f)
+    for tmp_f in dir_list:
+        if tmp_f[0:6] == 'temp_p':
+            pname = os.path.join(tmp_dir, tmp_f)
             sample_permutation = np.load(pname)
             indicator_matrix = update_indicator_matrix(sample_permutation, indicator_matrix)
-    
-    #tmp_dir = run_parameters["tmp_directory"]        
-    #number_of_bootstraps = int(run_parameters["number_of_bootstraps"])
-    #for sample in range(0, number_of_bootstraps):
-        #pname = os.path.join(tmp_dir, ('temp_p' + str(sample)))
-        #sample_permutation = np.load(pname)
-        #indicator_matrix = update_indicator_matrix(sample_permutation, indicator_matrix)
 
     return indicator_matrix
 
 def form_linkage_matrix(run_parameters, linkage_matrix):
-    """ read bootstrap temp_h* files compute the linkage_matrix.
+    """ read bootstrap temp_h* and temp_p* files, compute and add the linkage_matrix.
 
     Args:
         run_parameters: parameter set dictionary.
         linkage_matrix: connectivity matrix from initialization or previous call.
 
     Returns:
-        linkage_matrix: input summed with "temp_h*" files in run_parameters["tmp_directory"].
+        linkage_matrix: summed with "temp_h*" files in run_parameters["tmp_directory"].
     """
     tmp_dir = run_parameters["tmp_directory"]
     dir_list = os.listdir(tmp_dir)
-    for f in dir_list:
-        if f[0:6] == 'temp_p':
-            pname = os.path.join(tmp_dir, f)
+    for tmp_f in dir_list:
+        if tmp_f[0:6] == 'temp_p':
+            pname = os.path.join(tmp_dir, tmp_f)
             sample_permutation = np.load(pname)
-            hname = os.path.join(tmp_dir, f[0:5] + 'h' + f[6:len(f)])
+            hname = os.path.join(tmp_dir, tmp_f[0:5] + 'h' + tmp_f[6:len(tmp_f)])
             h_mat = np.load(hname)
             linkage_matrix = update_linkage_matrix(h_mat, sample_permutation, linkage_matrix)
-    
-    #tmp_dir = run_parameters["tmp_directory"]
-    #number_of_bootstraps = int(run_parameters["number_of_bootstraps"])
-    #for sample in range(0, number_of_bootstraps):
-        #hname = os.path.join(tmp_dir, ('temp_h' + str(sample)))
-        #h_mat = np.load(hname)
-        #pname = os.path.join(tmp_dir, ('temp_p' + str(sample)))
-        #sample_permutation = np.load(pname)
-        #linkage_matrix = update_linkage_matrix(h_mat, sample_permutation, linkage_matrix)
 
     return linkage_matrix
 
@@ -1272,14 +1256,14 @@ def now_name(name_base, name_extension, run_parameters=None):
     Returns:
         time_stamped_file_name: concatenation of the inputs with time-stamp.
     """
-    MAX_STEP = 1e6
-    MIN_STEP = 1
+    dt_max = 1e6
+    dt_min = 1
     if run_parameters is None:
         nstr = time.strftime("%a_%d_%b_%Y_%H_%M_%S", time.localtime())
     else:
-        time_step = min(max(int(run_parameters['use_now_name']), MIN_STEP), MAX_STEP)
+        time_step = min(max(int(run_parameters['use_now_name']), dt_min), dt_max)
         nstr = np.str_(int(time.time() * time_step))
-        
+
     time_stamped_file_name = name_base + '_' + nstr + '.' + name_extension
 
     return time_stamped_file_name
