@@ -327,9 +327,8 @@ def perform_fisher_exact_test(
         new_user_set = spreadsheet_df.loc[:, col]
         user_count = np.sum(new_user_set.values)
         overlap_count = prop_gene_network_sparse.T.dot(new_user_set.values)
-        pval_overlap = np.zeros(len(reverse_prop_gene_network_n1_names_dict))
 
-        for i, item_pval in enumerate(pval_overlap):
+        for i in range(0, len(reverse_prop_gene_network_n1_names_dict)):
             table = build_contigency_table(
                 overlap_count[i], user_count, gene_count[0, i], universe_count)
             oddsratio, pvalue = stats.fisher_exact(table, alternative="greater")
@@ -371,11 +370,137 @@ def build_contigency_table(overlap_count, user_count, gene_count, count):
     """
     table = np.zeros(shape=(2, 2))
     table[0, 0] = overlap_count
-    table[0, 1] = user_count - table[0, 0]
-    table[1, 0] = gene_count - table[0, 0]
-    table[1, 1] = count - user_count - gene_count + table[0, 0]
+    table[0, 1] = user_count - overlap_count
+    table[1, 0] = gene_count - overlap_count
+    table[1, 1] = count - user_count - gene_count + overlap_count
 
     return table
+
+def perform_DRaWR(network_sparse, spreadsheet_df, len_gene_names, run_parameters):
+    """ calculate random walk with global network and user set gene sets  and write output.
+
+    Args:
+        network_sparse: sparse matrix of global network.
+        spreadsheet_df: dataframe of user gene sets.
+        len_gene_names: length of genes in the in the user spreadsheet.
+        run_parameters: parameters dictionary.
+    """
+    hetero_network = normalize(network_sparse, norm='l1', axis=0)
+    new_spreadsheet_df = append_baseline_to_spreadsheet(spreadsheet_df, len_gene_names)
+
+    final_spreadsheet_matrix, step = smooth_spreadsheet_with_rwr(
+        normalize(new_spreadsheet_df, norm='l1', axis=0), hetero_network, run_parameters)
+
+    final_spreadsheet_df = pd.DataFrame(
+        final_spreadsheet_matrix, index=new_spreadsheet_df.index.values,
+        columns=new_spreadsheet_df.columns.values)
+
+    final_spreadsheet_df = final_spreadsheet_df.iloc[len_gene_names:]
+    for col in final_spreadsheet_df.columns.values[:-1]:
+        final_spreadsheet_df[col] = final_spreadsheet_df[col] - final_spreadsheet_df['base']
+        final_spreadsheet_df[col] = final_spreadsheet_df.sort_values(col, ascending=0).index.values
+
+    final_spreadsheet_df['base'] = \
+        final_spreadsheet_df.sort_values('base', ascending=0).index.values
+    save_result(final_spreadsheet_df, run_parameters['results_directory'], "rw_result.txt")
+
+    return
+
+def append_baseline_to_spreadsheet(spreadsheet_df, len_gene):
+    """ append baseline vector of the user spreadsheet matrix.
+
+    Args:
+        spreadsheet_df: user spreadsheet dataframe.
+        len_gene: length of genes in the user spreadsheet.
+
+    Returns:
+        spreadsheet_df: new dataframe with baseline vector appended in the last column.
+    """
+    property_size = spreadsheet_df.shape[0] - len_gene
+    spreadsheet_df["base"] = np.append(np.ones(len_gene), np.zeros(property_size))
+
+    return spreadsheet_df
+
+def normalize_df(network_df, node_id):
+    """ normalize the network column with numbers for input.
+
+    Args:
+        network_df: network dataframe.
+        node_id: column name
+
+    Returns:
+        network_df: the same dataframe with weight normalized.
+    """
+    network_df[node_id] /= network_df[node_id].sum()
+
+    return network_df
+
+def form_hybrid_network(list_of_networks):
+    """ concatenate a list of networks.
+
+    Args:
+        list_of_networks: a list of networks to join
+
+    Returns:
+        a combined hybrid network
+    """
+    return pd.concat(list_of_networks)
+
+
+def run_fisher(run_parameters):
+    ''' wrapper: call sequence to perform fisher gene-set characterization
+
+    Args:
+        run_parameters: dictionary of run parameters
+    '''
+    # -----------------------------------
+    # - Data read and extraction Section -
+    # -----------------------------------
+    spreadsheet_df = get_spreadsheet(run_parameters)
+    prop_gene_network_df = get_network(run_parameters['pg_network_file_name'])
+
+    spreadsheet_gene_names = extract_spreadsheet_gene_names(spreadsheet_df)
+
+    prop_gene_network_n1_names,\
+    prop_gene_network_n2_names = extract_network_node_names(prop_gene_network_df)
+
+    # -----------------------------------------------------------------------
+    # - limit the gene set to the intersection of network and user gene set -
+    # -----------------------------------------------------------------------
+    common_gene_names = find_common_node_names(prop_gene_network_n2_names, spreadsheet_gene_names)
+
+    common_gene_names_dict = create_node_names_dictionary(common_gene_names)
+
+    prop_gene_network_n1_names_dict = create_node_names_dictionary(prop_gene_network_n1_names)
+
+    reverse_prop_gene_network_n1_names_dict = create_all_nodes_reverse_dict(
+        prop_gene_network_n1_names_dict)
+
+    # ----------------------------------------------------------------------------
+    # - restrict spreadsheet and network to common genes and drop everthing else -
+    # ----------------------------------------------------------------------------
+    spreadsheet_df = update_spreadsheet(spreadsheet_df, common_gene_names)
+    prop_gene_network_df = update_network(prop_gene_network_df, common_gene_names, "node_2")
+
+    # ----------------------------------------------------------------------------
+    # - map every gene name to an integer index in sequential order startng at 0 -
+    # ----------------------------------------------------------------------------
+    prop_gene_network_df = map_node_names_to_index(
+        prop_gene_network_df, prop_gene_network_n1_names_dict, "node_1")
+    prop_gene_network_df = map_node_names_to_index(
+        prop_gene_network_df, common_gene_names_dict, "node_2")
+
+    # --------------------------------------------
+    # - store the network in a csr sparse format -
+    # --------------------------------------------
+    universe_count = len(common_gene_names)
+    prop_gene_network_sparse = convert_network_df_to_sparse(
+        prop_gene_network_df, universe_count, len(prop_gene_network_n1_names))
+    perform_fisher_exact_test(
+        prop_gene_network_sparse, reverse_prop_gene_network_n1_names_dict,
+        spreadsheet_df, universe_count, run_parameters['results_directory'])
+
+    return
 
 def run_DRaWR(run_parameters):
     ''' wrapper: call sequence to perform random walk with restart
@@ -422,132 +547,6 @@ def run_DRaWR(run_parameters):
         hybrid_network_df, len(unique_all_node_names), len(unique_all_node_names))
 
     perform_DRaWR(network_sparse, spreadsheet_df, len(unique_gene_names), run_parameters)
-
-
-def perform_DRaWR(sparse_m, user_df, len_gene, run_parameters):
-    """ calculate random walk with global network and user set gene sets  and write output.
-
-    Args:
-        sparse_m: sparse matrix of global network.
-        user_df: dataframe of user gene sets.
-        len_gene: length of genes in the in the user spreadsheet.
-        run_parameters: parameters dictionary.
-    """
-
-    tmp_dir = run_parameters['results_directory']
-    hetero_network = normalize(sparse_m, norm='l1', axis=0)
-    new_user_df = append_baseline_to_spreadsheet(user_df, len_gene)
-    new_user_matrix = normalize(new_user_df, norm='l1', axis=0)
-
-    final_user_matrix, step = smooth_spreadsheet_with_rwr(
-        new_user_matrix, hetero_network, run_parameters)
-    final_user_df = pd.DataFrame(
-        final_user_matrix, index=new_user_df.index.values, columns=new_user_df.columns.values)
-    final_user_df = final_user_df.iloc[len_gene:]
-    for col in final_user_df.columns.values[:-1]:
-        final_user_df[col] = final_user_df[col] - final_user_df['base']
-        final_user_df[col] = final_user_df.sort_values(col, ascending=0).index.values
-
-    final_user_df['base'] = final_user_df.sort_values('base', ascending=0).index.values
-    save_result(final_user_df, tmp_dir, "rw_result.txt")
-
-    return
-
-def append_baseline_to_spreadsheet(user_df, len_gene):
-    """ append baseline vector of the user spreadsheet matrix.
-
-    Args:
-        user_df: user spreadsheet dataframe.
-        len_gene: length of genes in the user spreadsheet.
-
-    Returns:
-        user_df: new dataframe with baseline vector appended in the last column.
-    """
-    property_size = user_df.shape[0] - len_gene
-    user_df["base"] = np.append(np.ones(len_gene), np.zeros(property_size))
-
-    return user_df
-
-def normalize_df(network_df, node_id):
-    """ normalize the network column with numbers for input.
-
-    Args:
-        network_df: network dataframe.
-        node_id: column name
-
-    Returns:
-        network_df: the same dataframe with weight normalized.
-    """
-    network_df[node_id] /= network_df[node_id].sum()
-
-    return network_df
-
-def form_hybrid_network(list_of_networks):
-    """ concatenate a list of networks.
-
-    Args:
-        list_of_networks: a list of networks to join
-
-    Returns:
-        a combined hybrid network
-    """
-    return pd.concat(list_of_networks)
-
-
-def run_fisher(run_parameters):
-    ''' wrapper: call sequence to perform fisher gene-set characterization
-
-    Args:
-        run_parameters: dictionary of run parameters
-    '''
-    # -----------------------------------
-    # - Data read and extractio Section -
-    # -----------------------------------
-    spreadsheet_df = get_spreadsheet(run_parameters)
-    prop_gene_network_df = get_network(run_parameters['pg_network_file_name'])
-
-    spreadsheet_gene_names = extract_spreadsheet_gene_names(spreadsheet_df)
-
-    prop_gene_network_n1_names,\
-    prop_gene_network_n2_names = extract_network_node_names(prop_gene_network_df)
-
-    # -----------------------------------------------------------------------
-    # - limit the gene set to the intersection of network and user gene set -
-    # -----------------------------------------------------------------------
-    common_gene_names = find_common_node_names(prop_gene_network_n2_names, spreadsheet_gene_names)
-
-    common_gene_names_dict = create_node_names_dictionary(common_gene_names)
-
-    prop_gene_network_n1_names_dict = create_node_names_dictionary(prop_gene_network_n1_names)
-
-    reverse_prop_gene_network_n1_names_dict = create_all_nodes_reverse_dict(
-        prop_gene_network_n1_names_dict)
-
-    # ----------------------------------------------------------------------------
-    # - restrict spreadsheet and network to common genes and drop everthing else -
-    # ----------------------------------------------------------------------------
-    spreadsheet_df = update_spreadsheet(spreadsheet_df, common_gene_names)
-    prop_gene_network_df = update_network(prop_gene_network_df, common_gene_names, "node_2")
-
-    # ----------------------------------------------------------------------------
-    # - map every gene name to an integer index in sequential order startng at 0 -
-    # ----------------------------------------------------------------------------
-    prop_gene_network_df = map_node_names_to_index(
-        prop_gene_network_df, prop_gene_network_n1_names_dict, "node_1")
-    prop_gene_network_df = map_node_names_to_index(
-        prop_gene_network_df, common_gene_names_dict, "node_2")
-
-    # --------------------------------------------
-    # - store the network in a csr sparse format -
-    # --------------------------------------------
-    prop_gene_network_sparse = convert_network_df_to_sparse(
-        prop_gene_network_df, len(common_gene_names), len(prop_gene_network_n1_names))
-
-    results_dir = run_parameters['results_directory']
-    universe_count = len(common_gene_names)
-    perform_fisher_exact_test(
-        prop_gene_network_sparse, reverse_prop_gene_network_n1_names_dict,
-        spreadsheet_df, universe_count, results_dir)
 
     return
 
@@ -1251,10 +1250,10 @@ def now_name(name_base, name_extension, run_parameters=None):
     Args:
         name_base: file name first part - may include directory path.
         name_extension: file extension without a period.
-        run_parameters: run_parameters['use_now_name'] >= 1 and <= 100000
+        run_parameters: run_parameters['use_now_name'] (between 1 and 1,000,000)
 
     Returns:
-        time_stamped_file_name: concatenation of the inputs with time-stamp.
+        time_stamped_file_name: concatenation of time-stamp between inputs.
     """
     dt_max = 1e6
     dt_min = 1
