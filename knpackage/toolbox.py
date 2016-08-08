@@ -709,84 +709,6 @@ def find_and_save_nmf_clusters(spreadsheet_mat, run_parameters):
 
     return
 
-def save_temporary_cluster(h_matrix, sample_permutation, run_parameters, sequence_number):
-    """ save one h_matrix and one permutation in temorary files with sequence_number appended names.
-
-    Args:
-        h_matrix: k x permutation size matrix.
-        sample_permutation: indices of h_matrix columns permutation.
-        run_parameters: parmaeters including the "tmp_directory" name.
-        sequence_number: temporary file name suffix.
-    """
-    tmp_dir = run_parameters["tmp_directory"]
-    time_stamp = timestamp_filename('_N', str(sequence_number), run_parameters)
-    hname = os.path.join(tmp_dir, 'temp_h'+time_stamp)
-    h_matrix.dump(hname)
-    pname = os.path.join(tmp_dir, 'temp_p'+time_stamp)
-    sample_permutation.dump(pname)
-
-    return
-
-def form_indicator_matrix(run_parameters, indicator_matrix):
-    """ read bootstrap temp_p* files and compute the indicator_matrix.
-
-    Args:
-        run_parameters: parameter set dictionary.
-        indicator_matrix: indicator matrix from initialization or previous call.
-
-    Returns:
-        indicator_matrix: input summed with "temp_p*" files in run_parameters["tmp_directory"].
-    """
-    tmp_dir = run_parameters["tmp_directory"]
-    dir_list = os.listdir(tmp_dir)
-    for tmp_f in dir_list:
-        if tmp_f[0:6] == 'temp_p':
-            pname = os.path.join(tmp_dir, tmp_f)
-            sample_permutation = np.load(pname)
-            indicator_matrix = update_indicator_matrix(sample_permutation, indicator_matrix)
-
-    return indicator_matrix
-
-def form_linkage_matrix(run_parameters, linkage_matrix):
-    """ read bootstrap temp_h* and temp_p* files, compute and add the linkage_matrix.
-
-    Args:
-        run_parameters: parameter set dictionary.
-        linkage_matrix: connectivity matrix from initialization or previous call.
-
-    Returns:
-        linkage_matrix: summed with "temp_h*" files in run_parameters["tmp_directory"].
-    """
-    tmp_dir = run_parameters["tmp_directory"]
-    dir_list = os.listdir(tmp_dir)
-    for tmp_f in dir_list:
-        if tmp_f[0:6] == 'temp_p':
-            pname = os.path.join(tmp_dir, tmp_f)
-            sample_permutation = np.load(pname)
-            hname = os.path.join(tmp_dir, tmp_f[0:5] + 'h' + tmp_f[6:len(tmp_f)])
-            h_mat = np.load(hname)
-            linkage_matrix = update_linkage_matrix(h_mat, sample_permutation, linkage_matrix)
-
-    return linkage_matrix
-
-def form_consensus_matrix(run_parameters, linkage_matrix, indicator_matrix):
-    """ compute the consensus matrix from the indicator and linkage matrix inputs
-        formed by the bootstrap "temp_*" files.
-
-    Args:
-        run_parameters: parameter set dictionary with "tmp_directory" key.
-        linkage_matrix: linkage matrix from initialization or previous call.
-        indicator_matrix: indicator matrix from initialization or previous call.
-
-    Returns:
-        consensus_matrix: (sum of linkage matrices) / (sum of indicator matrices).
-    """
-    indicator_matrix = form_indicator_matrix(run_parameters, indicator_matrix)
-    linkage_matrix = form_linkage_matrix(run_parameters, linkage_matrix)
-    consensus_matrix = linkage_matrix / np.maximum(indicator_matrix, 1)
-
-    return consensus_matrix
-
 def normalized_matrix(network_mat):
     """ square root of inverse of diagonal D (D * network_mat * D) normaization.
 
@@ -1031,22 +953,108 @@ def perform_nmf(x_matrix, run_parameters):
 
     return h_matrix
 
-def update_linkage_matrix(encode_mat, sample_perm, linkage_matrix):
-    ''' update the connectivity matrix by summing the un-permuted linkages.
+def form_consensus_matrix(run_parameters, linkage_matrix, indicator_matrix):
+    """ compute the consensus matrix from the indicator and linkage matrix inputs
+        formed by the bootstrap "temp_*" files.
 
     Args:
-        encode_mat: (permuted) nonnegative right factor matrix (H) - encoded linkage.
+        run_parameters: parameter set dictionary with "tmp_directory" key.
+        linkage_matrix: linkage matrix from initialization or previous call.
+        indicator_matrix: indicator matrix from initialization or previous call.
+
+    Returns:
+        consensus_matrix: (sum of linkage matrices) / (sum of indicator matrices).
+    """
+    indicator_matrix = form_indicator_matrix(run_parameters, indicator_matrix)
+    linkage_matrix = form_linkage_matrix(run_parameters, linkage_matrix)
+    consensus_matrix = linkage_matrix / np.maximum(indicator_matrix, 1)
+
+    return consensus_matrix
+
+def form_indicator_matrix(run_parameters, indicator_matrix):
+    """ read bootstrap temp_p* files and compute the indicator_matrix.
+
+    Args:
+        run_parameters: parameter set dictionary.
+        indicator_matrix: indicator matrix from initialization or previous call.
+
+    Returns:
+        indicator_matrix: input summed with "temp_p*" files in run_parameters["tmp_directory"].
+    """
+    tmp_dir = run_parameters["tmp_directory"]
+    dir_list = os.listdir(tmp_dir)
+    for tmp_f in dir_list:
+        if tmp_f[0:6] == 'temp_p':
+            pname = os.path.join(tmp_dir, tmp_f)
+            sample_permutation = np.load(pname)
+            indicator_matrix = update_indicator_matrix(sample_permutation, indicator_matrix)
+
+    return indicator_matrix
+
+def form_linkage_matrix(run_parameters, linkage_matrix):
+    """ read bootstrap temp_h* and temp_p* files, compute and add the linkage_matrix.
+
+    Args:
+        run_parameters: parameter set dictionary.
+        linkage_matrix: connectivity matrix from initialization or previous call.
+
+    Returns:
+        linkage_matrix: summed with "temp_h*" files in run_parameters["tmp_directory"].
+    """
+    tmp_dir = run_parameters["tmp_directory"]
+    dir_list = os.listdir(tmp_dir)
+    for tmp_f in dir_list:
+        if tmp_f[0:6] == 'temp_p':
+            pname = os.path.join(tmp_dir, tmp_f)
+            sample_permutation = np.load(pname)
+            hname = os.path.join(tmp_dir, tmp_f[0:5] + 'h' + tmp_f[6:len(tmp_f)])
+            h_mat = np.load(hname)
+            linkage_matrix = update_linkage_matrix(h_mat, sample_permutation, linkage_matrix)
+
+    return linkage_matrix
+
+def save_temporary_cluster(h_matrix, sample_permutation, run_parameters, sequence_number):
+    """ save one h_matrix and one permutation in temorary files with sequence_number appended names.
+
+    Args:
+        h_matrix: k x permutation size matrix.
+        sample_permutation: indices of h_matrix columns permutation.
+        run_parameters: parmaeters including the "tmp_directory" name.
+        sequence_number: temporary file name suffix.
+    """
+    tmp_dir = run_parameters["tmp_directory"]
+    time_stamp = timestamp_filename('_N', str(sequence_number), run_parameters)
+    hname = os.path.join(tmp_dir, 'temp_h'+time_stamp)
+    cluster_id = np.argmax(h_matrix, 0)
+    cluster_id.dump(hname)
+    pname = os.path.join(tmp_dir, 'temp_p'+time_stamp)
+    sample_permutation.dump(pname)
+
+    return
+
+def update_linkage_matrix(encode_mat, sample_perm, linkage_matrix):
+    ''' update the connectivity matrix by summing the un-permuted linkages.
+    encode_mat: (permuted) nonnegative right factor matrix (H) - encoded linkage.
+    Args:
+        encode_mat: encoding of linkage either as an h_matrix or argmax(h_matrix)
+            
         sample_perm: the sample permutaion of the h_matrix.
         linkage_matrix: connectivity matrix.
 
     Returns:
         linkage_matrix: connectivity matrix summed with the de-permuted linkage.
     '''
-    num_clusters = encode_mat.shape[0]
-    cluster_id = np.argmax(encode_mat, 0)
+    if encode_mat.ndim == 1:
+        num_clusters = max(encode_mat) + 1
+        cluster_id = encode_mat
+    else:
+        num_clusters = encode_mat.shape[0]
+        cluster_id = np.argmax(encode_mat, 0)
+
     for cluster in range(0, num_clusters):
         slice_id = sample_perm[cluster_id == cluster]
         linkage_matrix[slice_id[:, None], slice_id] += 1
+
     return linkage_matrix
 
 def update_indicator_matrix(sample_perm, indicator_matrix):
