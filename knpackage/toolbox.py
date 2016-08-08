@@ -300,7 +300,7 @@ def perform_fisher_exact_test(
         overlap_count = prop_gene_network_sparse.T.dot(new_user_set.values)
 
         for i in range(0, len(reverse_prop_gene_network_n1_names_dict)):
-            table = build_contigency_table(
+            table = build_fisher_contigency_table(
                 overlap_count[i], user_count, gene_count[0, i], universe_count)
             oddsratio, pvalue = stats.fisher_exact(table, alternative="greater")
 
@@ -327,7 +327,7 @@ def save_df(result_df, tmp_dir, file_name):
 
     return
 
-def build_contigency_table(overlap_count, user_count, gene_count, count):
+def build_fisher_contigency_table(overlap_count, user_count, gene_count, count):
     """ build contigency table for fisher exact test.
 
     Args:
@@ -357,7 +357,7 @@ def perform_DRaWR(network_sparse, spreadsheet_df, len_gene_names, run_parameters
         run_parameters: parameters dictionary.
     """
     hetero_network = normalize(network_sparse, norm='l1', axis=0)
-    new_spreadsheet_df = append_baseline_to_spreadsheet(spreadsheet_df, len_gene_names)
+    new_spreadsheet_df = append_column_to_spreadsheet(spreadsheet_df, len_gene_names)
 
     final_spreadsheet_matrix, step = smooth_matrix_with_rwr(
         normalize(new_spreadsheet_df, norm='l1', axis=0), hetero_network, run_parameters)
@@ -377,7 +377,7 @@ def perform_DRaWR(network_sparse, spreadsheet_df, len_gene_names, run_parameters
 
     return
 
-def append_baseline_to_spreadsheet(spreadsheet_df, len_gene):
+def append_column_to_spreadsheet(spreadsheet_df, len_gene):
     """ append baseline vector of the user spreadsheet matrix.
 
     Args:
@@ -407,7 +407,7 @@ def normalize_df(network_df, node_id):
 
     return network_df
 
-def form_hybrid_network(list_of_networks):
+def form_hybrid_network_df(list_of_networks):
     """ concatenate a list of networks.
         Note: expecting zero or no diagonal.
 
@@ -513,7 +513,7 @@ def run_DRaWR(run_parameters):
     gg_network_df = normalize_df(gg_network_df, 'wt')
     pg_network_df = normalize_df(pg_network_df, 'wt')
 
-    hybrid_network_df = form_hybrid_network([gg_network_df, pg_network_df])
+    hybrid_network_df = form_hybrid_network_df([gg_network_df, pg_network_df])
 
     # store the network in a csr sparse format
     network_sparse = convert_network_df_to_sparse(
@@ -533,12 +533,12 @@ def run_nmf(run_parameters):
     spreadsheet_mat = spreadsheet_df.as_matrix()
     spreadsheet_mat = get_quantile_norm_matrix(spreadsheet_mat)
 
-    h_mat = nmf(spreadsheet_mat, run_parameters)
+    h_mat = perform_nmf(spreadsheet_mat, run_parameters)
 
     linkage_matrix = np.zeros((spreadsheet_mat.shape[1], spreadsheet_mat.shape[1]))
     sample_perm = np.arange(0, spreadsheet_mat.shape[1])
     linkage_matrix = update_linkage_matrix(h_mat, sample_perm, linkage_matrix)
-    labels = kmeans_cluster_consensus_matrix(linkage_matrix, int(run_parameters['k']))
+    labels = perform_kmeans(linkage_matrix, int(run_parameters['k']))
 
     sample_names = spreadsheet_df.columns
     save_clusters(sample_names, labels, run_parameters)
@@ -565,7 +565,7 @@ def run_cc_nmf(run_parameters):
     linkage_matrix = np.zeros((spreadsheet_mat.shape[1], spreadsheet_mat.shape[1]))
     indicator_matrix = linkage_matrix.copy()
     consensus_matrix = form_consensus_matrix(run_parameters, linkage_matrix, indicator_matrix)
-    labels = kmeans_cluster_consensus_matrix(consensus_matrix, int(run_parameters['k']))
+    labels = perform_kmeans(consensus_matrix, int(run_parameters['k']))
 
     sample_names = spreadsheet_df.columns
     save_consensus_cluster_result(consensus_matrix, sample_names, labels, run_parameters)
@@ -610,7 +610,7 @@ def run_net_nmf(run_parameters):
     linkage_matrix = np.zeros((spreadsheet_mat.shape[1], spreadsheet_mat.shape[1]))
     sample_perm = np.arange(0, spreadsheet_mat.shape[1])
     linkage_matrix = update_linkage_matrix(h_mat, sample_perm, linkage_matrix)
-    labels = kmeans_cluster_consensus_matrix(linkage_matrix, int(run_parameters["k"]))
+    labels = perform_kmeans(linkage_matrix, int(run_parameters["k"]))
 
     save_clusters(sample_names, labels, run_parameters)
 
@@ -652,7 +652,7 @@ def run_cc_net_nmf(run_parameters):
     linkage_matrix = np.zeros((spreadsheet_mat.shape[1], spreadsheet_mat.shape[1]))
     indicator_matrix = linkage_matrix.copy()
     consensus_matrix = form_consensus_matrix(run_parameters, linkage_matrix, indicator_matrix)
-    labels = kmeans_cluster_consensus_matrix(consensus_matrix, int(run_parameters['k']))
+    labels = perform_kmeans(consensus_matrix, int(run_parameters['k']))
 
     save_consensus_cluster_result(consensus_matrix, sample_names, labels, run_parameters)
 
@@ -700,7 +700,7 @@ def find_and_save_nmf_clusters(spreadsheet_mat, run_parameters):
         sample_random, sample_permutation = sample_a_matrix(
             spreadsheet_mat, np.float64(run_parameters["percent_sample"]))
 
-        h_mat = nmf(sample_random, run_parameters)
+        h_mat = perform_nmf(sample_random, run_parameters)
         save_temporary_cluster(h_mat, sample_permutation, run_parameters, sample)
 
         if int(run_parameters['verbose']) != 0:
@@ -719,7 +719,7 @@ def save_temporary_cluster(h_matrix, sample_permutation, run_parameters, sequenc
         sequence_number: temporary file name suffix.
     """
     tmp_dir = run_parameters["tmp_directory"]
-    time_stamp = now_name('_N', str(sequence_number), run_parameters)
+    time_stamp = timestamp_filename('_N', str(sequence_number), run_parameters)
     hname = os.path.join(tmp_dir, 'temp_h'+time_stamp)
     h_matrix.dump(hname)
     pname = os.path.join(tmp_dir, 'temp_p'+time_stamp)
@@ -900,7 +900,7 @@ def get_quantile_norm_matrix(sample):
 
     return sample_quantile_norm
 
-def update_coordinates(w_matrix, x_matrix):
+def update_h_coordinate_matrix(w_matrix, x_matrix):
     """ nonnegative right factor matrix for perform_net_nmf function s.t. X ~ W.H.
 
     Args:
@@ -988,11 +988,11 @@ def perform_net_nmf(x_matrix, lap_val, lap_dag, run_parameters):
                               + lmbda * lap_dag.dot(w_matrix), epsilon)
         w_matrix = w_matrix * (numerator / denomerator)
         w_matrix = maximum(w_matrix / maximum(sum(w_matrix), epsilon), epsilon)
-        h_matrix = update_coordinates(w_matrix, x_matrix)
+        h_matrix = update_h_coordinate_matrix(w_matrix, x_matrix)
 
     return h_matrix
 
-def nmf(x_matrix, run_parameters):
+def perform_nmf(x_matrix, run_parameters):
     """ nonnegative matrix factorization, minimize the diffence between X and W dot H
         with positive factor matrices W, and H.
 
@@ -1027,7 +1027,7 @@ def nmf(x_matrix, run_parameters):
         denomerator = maximum(np.dot(w_matrix, np.dot(h_matrix, h_matrix.T)), epsilon)
         w_matrix = w_matrix * (numerator / denomerator)
         w_matrix = maximum(w_matrix / maximum(sum(w_matrix), epsilon), epsilon)
-        h_matrix = update_coordinates(w_matrix, x_matrix)
+        h_matrix = update_h_coordinate_matrix(w_matrix, x_matrix)
 
     return h_matrix
 
@@ -1063,7 +1063,7 @@ def update_indicator_matrix(sample_perm, indicator_matrix):
 
     return indicator_matrix
 
-def kmeans_cluster_consensus_matrix(consensus_matrix, k=3):
+def perform_kmeans(consensus_matrix, k=3):
     """ determine cluster assignments for consensus matrix using K-means.
 
     Args:
@@ -1089,7 +1089,7 @@ def form_consensus_matrix_graphic(consensus_matrix, k=3):
         cc_cm: consensus_matrix with rows and columns in K-means sort order.
     '''
     cc_cm = consensus_matrix.copy()
-    labels = kmeans_cluster_consensus_matrix(consensus_matrix, k)
+    labels = perform_kmeans(consensus_matrix, k)
     sorted_labels = np.argsort(labels)
     cc_cm = cc_cm[sorted_labels[:, None], sorted_labels]
 
@@ -1177,7 +1177,7 @@ def write_consensus_matrix(consensus_matrix, sample_names, labels, run_parameter
     """
     if int(run_parameters["use_now_name"]) != 0:
         file_name = os.path.join(
-            run_parameters["results_directory"], now_name('consensus_data', 'df'))
+            run_parameters["results_directory"], timestamp_filename('consensus_data', 'df'))
     else:
         file_name = os.path.join(run_parameters["results_directory"], 'consensus_data.df')
     out_df = pd.DataFrame(data=consensus_matrix, columns=sample_names, index=labels)
@@ -1195,7 +1195,7 @@ def save_clusters(sample_names, labels, run_parameters):
     """
     if int(run_parameters["use_now_name"]) != 0:
         file_name = os.path.join(
-            run_parameters["results_directory"], now_name('labels_data', 'tsv'))
+            run_parameters["results_directory"], timestamp_filename('labels_data', 'tsv'))
     else:
         file_name = os.path.join(run_parameters["results_directory"], 'labels_data.tsv')
 
@@ -1204,7 +1204,7 @@ def save_clusters(sample_names, labels, run_parameters):
 
     return
 
-def now_name(name_base, name_extension, run_parameters=None):
+def timestamp_filename(name_base, name_extension, run_parameters=None):
     """ insert a time stamp into the filename_ before .extension.
 
     Args:
@@ -1227,7 +1227,7 @@ def now_name(name_base, name_extension, run_parameters=None):
 
     return time_stamped_file_name
 
-def cluster_parameters_dict():
+def default_cluster_parameters_dict():
     """ dictionary of parameters: keys with default values.
 
     Args: None.
@@ -1268,7 +1268,7 @@ def generate_run_file(run_parameters=None, file_name='run_file'):
         file_name: file name (will be written as plain text).
     """
     if run_parameters is None:
-        run_parameters = cluster_parameters_dict()
+        run_parameters = default_cluster_parameters_dict()
     par_dataframe = pd.DataFrame.from_dict(run_parameters, orient='index')
     par_dataframe.to_csv(file_name, sep='\t', header=False)
 
