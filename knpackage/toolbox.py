@@ -55,7 +55,7 @@ def get_run_parameters(run_directory, run_file):
 
     return run_parameters
 
-def get_spreadsheet(run_parameters):
+def get_spreadsheet_df(run_parameters):
     """ get the spreadsheet file name from the run_parameters dictionary and
         read the file into a pandas dataframe.
 
@@ -70,7 +70,7 @@ def get_spreadsheet(run_parameters):
 
     return spreadsheet_df
 
-def get_network(network_name):
+def get_network_df(network_name):
     """ Read in the cleaned subnet from KnowEnG network.
 
     Args:
@@ -141,7 +141,7 @@ def extract_spreadsheet_gene_names(spreadsheet_df):
 
     return spreadsheet_gene_names
 
-def write_spreadsheet_droplist(spreadsheet_df, unique_gene_names, run_parameters, file_name):
+def find_dropped_node_names(spreadsheet_df, unique_gene_names, run_parameters, file_name):
     """ write list of genes dropped from the input spreadsheed to
         run_parameters['tmp_directory'].file_name.
 
@@ -159,7 +159,7 @@ def write_spreadsheet_droplist(spreadsheet_df, unique_gene_names, run_parameters
 
     return
 
-def update_spreadsheet(spreadsheet_df, gene_names):
+def update_spreadsheet_df(spreadsheet_df, gene_names):
     """ resize and reorder spreadsheet dataframe to only the gene_names list.
 
     Args:
@@ -173,7 +173,7 @@ def update_spreadsheet(spreadsheet_df, gene_names):
 
     return updated_spreadsheet_df
 
-def update_network(network, nodes_list, node_id):
+def update_network_df(network, nodes_list, node_id):
     """ remove nodes not found as nodes_list in network node_id.
 
     Args:
@@ -187,7 +187,7 @@ def update_network(network, nodes_list, node_id):
 
     return updated_network
 
-def create_node_names_dictionary(node_names, start_value=0):
+def create_node_names_dict(node_names, start_value=0):
     """ create a python dictionary to look up gene locations from gene names
 
     Args:
@@ -201,11 +201,23 @@ def create_node_names_dictionary(node_names, start_value=0):
 
     return node_names_dictionary
 
-def symmetrize_df(network):
-    """ symmetrize network in sparse (3 cloumn) form.
+def create_reverse_node_names_dict(dictionary):
+    """ create reverse dictionary (keys > values, values > keys).
 
     Args:
-        network: property to gene edges.
+        dictionary: dictionary.
+
+    Returns:
+        reverse dictionary: dictionary.
+    """
+    return {value: key for key, value in dictionary.items()}
+
+def symmetrize_df(network):
+    """ symmetrize network in sparse (3 cloumn) form.
+        Note: expecting zero or no diagonal.
+
+    Args:
+        network: property to gene edges (with nothing on the diagonal).
 
     Returns:
         symm_network: symm_network[r, c] == symm_network[c, r], (network extended).
@@ -232,23 +244,6 @@ def map_node_names_to_index(network_df, genes_map, node_id):
 
     return network_df
 
-def convert_df_to_sparse(network_df, matrix_length):
-    """ network dataframe numerical columns [0,1,2] to scipy.sparse.csr_matrix.
-
-    Args:
-        network_df: padas dataframe with numerical columns [row_ix, col_ix, data].
-        matrix_length: form size of square "network_sparse" matrix.
-
-    Returns:
-        network_sparse: scipy.sparse.csr_matrix.
-    """
-    nwm = network_df.as_matrix()
-    network_sparse = spar.csr_matrix((np.float_(nwm[:, 2]),
-                                      (np.int_(nwm[:, 0]), np.int_(nwm[:, 1]))),
-                                     shape=(matrix_length, matrix_length))
-
-    return network_sparse
-
 def create_df_with_sample_labels(sample_names, labels):
     """ create dataframe from spreadsheet column names with cluster number assignments.
 
@@ -262,30 +257,6 @@ def create_df_with_sample_labels(sample_names, labels):
     clusters_dataframe = pd.DataFrame(data=labels, index=sample_names)
 
     return clusters_dataframe
-
-
-def create_all_nodes_reverse_dict(dictionary):
-    """ create reverse dictionary (keys > values, values > keys).
-
-    Args:
-        dictionary: dictionary.
-
-    Returns:
-        reverse dictionary: dictionary.
-    """
-    return {value: key for key, value in dictionary.items()}
-
-def combime_dictionaries(dict1, dict2):
-    """ combine two dictionaries into one.
-
-    Args:
-        dict1: dictionary.
-        dict2: dictionary.
-
-    Returns:
-        combined_dictionary: dictionary.
-    """
-    return dict(dict1.items() + dict2.items())
 
 def convert_network_df_to_sparse(pg_network_df, row_size, col_size):
     """ convert global network to sparse matrix.
@@ -339,11 +310,11 @@ def perform_fisher_exact_test(
                 df_val.append(row_item)
 
     result_df = pd.DataFrame(df_val, columns=df_col).sort_values("pval", ascending=1)
-    save_result(result_df, results_dir, "fisher_result.txt")
+    save_df(result_df, results_dir, "fisher_result.txt")
 
     return
 
-def save_result(result_df, tmp_dir, file_name):
+def save_df(result_df, tmp_dir, file_name):
     """ save the result of DRaWR in tmp directory, file_name.
 
     Args:
@@ -388,7 +359,7 @@ def perform_DRaWR(network_sparse, spreadsheet_df, len_gene_names, run_parameters
     hetero_network = normalize(network_sparse, norm='l1', axis=0)
     new_spreadsheet_df = append_baseline_to_spreadsheet(spreadsheet_df, len_gene_names)
 
-    final_spreadsheet_matrix, step = smooth_spreadsheet_with_rwr(
+    final_spreadsheet_matrix, step = smooth_matrix_with_rwr(
         normalize(new_spreadsheet_df, norm='l1', axis=0), hetero_network, run_parameters)
 
     final_spreadsheet_df = pd.DataFrame(
@@ -402,7 +373,7 @@ def perform_DRaWR(network_sparse, spreadsheet_df, len_gene_names, run_parameters
 
     final_spreadsheet_df['base'] = \
         final_spreadsheet_df.sort_values('base', ascending=0).index.values
-    save_result(final_spreadsheet_df, run_parameters['results_directory'], "rw_result.txt")
+    save_df(final_spreadsheet_df, run_parameters['results_directory'], "rw_result.txt")
 
     return
 
@@ -423,9 +394,10 @@ def append_baseline_to_spreadsheet(spreadsheet_df, len_gene):
 
 def normalize_df(network_df, node_id):
     """ normalize the network column with numbers for input.
+        Note: expecting zero or no diagonal.
 
     Args:
-        network_df: network dataframe.
+        network_df: network dataframe (with nothing on the diagonal).
         node_id: column name
 
     Returns:
@@ -437,9 +409,10 @@ def normalize_df(network_df, node_id):
 
 def form_hybrid_network(list_of_networks):
     """ concatenate a list of networks.
+        Note: expecting zero or no diagonal.
 
     Args:
-        list_of_networks: a list of networks to join
+        list_of_networks: a list of networks to join (with nothing on the diagonal).
 
     Returns:
         a combined hybrid network
@@ -456,8 +429,8 @@ def run_fisher(run_parameters):
     # -----------------------------------
     # - Data read and extraction Section -
     # -----------------------------------
-    spreadsheet_df = get_spreadsheet(run_parameters)
-    prop_gene_network_df = get_network(run_parameters['pg_network_file_name'])
+    spreadsheet_df = get_spreadsheet_df(run_parameters)
+    prop_gene_network_df = get_network_df(run_parameters['pg_network_file_name'])
 
     spreadsheet_gene_names = extract_spreadsheet_gene_names(spreadsheet_df)
 
@@ -469,18 +442,18 @@ def run_fisher(run_parameters):
     # -----------------------------------------------------------------------
     common_gene_names = find_common_node_names(prop_gene_network_n2_names, spreadsheet_gene_names)
 
-    common_gene_names_dict = create_node_names_dictionary(common_gene_names)
+    common_gene_names_dict = create_node_names_dict(common_gene_names)
 
-    prop_gene_network_n1_names_dict = create_node_names_dictionary(prop_gene_network_n1_names)
+    prop_gene_network_n1_names_dict = create_node_names_dict(prop_gene_network_n1_names)
 
-    reverse_prop_gene_network_n1_names_dict = create_all_nodes_reverse_dict(
+    reverse_prop_gene_network_n1_names_dict = create_reverse_node_names_dict(
         prop_gene_network_n1_names_dict)
 
     # ----------------------------------------------------------------------------
     # - restrict spreadsheet and network to common genes and drop everthing else -
     # ----------------------------------------------------------------------------
-    spreadsheet_df = update_spreadsheet(spreadsheet_df, common_gene_names)
-    prop_gene_network_df = update_network(prop_gene_network_df, common_gene_names, "node_2")
+    spreadsheet_df = update_spreadsheet_df(spreadsheet_df, common_gene_names)
+    prop_gene_network_df = update_network_df(prop_gene_network_df, common_gene_names, "node_2")
 
     # ----------------------------------------------------------------------------
     # - map every gene name to an integer index in sequential order startng at 0 -
@@ -508,9 +481,9 @@ def run_DRaWR(run_parameters):
     Args:
         run_parameters: dictionary of run parameters
     '''
-    spreadsheet_df = get_spreadsheet(run_parameters)
-    pg_network_df = get_network(run_parameters['pg_network_file_name'])
-    gg_network_df = get_network(run_parameters['gg_network_file_name'])
+    spreadsheet_df = get_spreadsheet_df(run_parameters)
+    pg_network_df = get_network_df(run_parameters['pg_network_file_name'])
+    gg_network_df = get_network_df(run_parameters['gg_network_file_name'])
 
     pg_network_n1_names,\
     pg_network_n2_names = extract_network_node_names(pg_network_df)
@@ -522,12 +495,12 @@ def run_DRaWR(run_parameters):
     unique_gene_names = find_unique_node_names(gg_network_n1_names, gg_network_n2_names)
     unique_gene_names = find_unique_node_names(unique_gene_names, pg_network_n2_names)
     unique_all_node_names = unique_gene_names + pg_network_n1_names
-    unique_gene_names_dict = create_node_names_dictionary(unique_gene_names)
-    pg_network_n1_names_dict = create_node_names_dictionary(
+    unique_gene_names_dict = create_node_names_dict(unique_gene_names)
+    pg_network_n1_names_dict = create_node_names_dict(
         pg_network_n1_names, len(unique_gene_names))
 
     # restrict spreadsheet to unique genes and drop everthing else
-    spreadsheet_df = update_spreadsheet(spreadsheet_df, unique_all_node_names)
+    spreadsheet_df = update_spreadsheet_df(spreadsheet_df, unique_all_node_names)
     # map every gene name to a sequential integer index
     gg_network_df = map_node_names_to_index(gg_network_df, unique_gene_names_dict, "node_1")
     gg_network_df = map_node_names_to_index(gg_network_df, unique_gene_names_dict, "node_2")
@@ -556,13 +529,13 @@ def run_nmf(run_parameters):
     Args:
         run_parameters: parameter set dictionary.
     """
-    spreadsheet_df = get_spreadsheet(run_parameters)
+    spreadsheet_df = get_spreadsheet_df(run_parameters)
     spreadsheet_mat = spreadsheet_df.as_matrix()
-    spreadsheet_mat = get_quantile_norm(spreadsheet_mat)
+    spreadsheet_mat = get_quantile_norm_matrix(spreadsheet_mat)
 
     h_mat = nmf(spreadsheet_mat, run_parameters)
 
-    linkage_matrix, indicator_matrix = initialization(spreadsheet_mat)
+    linkage_matrix = np.zeros((spreadsheet_mat.shape[1], spreadsheet_mat.shape[1]))
     sample_perm = np.arange(0, spreadsheet_mat.shape[1])
     linkage_matrix = update_linkage_matrix(h_mat, sample_perm, linkage_matrix)
     labels = kmeans_cluster_consensus_matrix(linkage_matrix, int(run_parameters['k']))
@@ -583,13 +556,14 @@ def run_cc_nmf(run_parameters):
     Args:
         run_parameters: parameter set dictionary.
     """
-    spreadsheet_df = get_spreadsheet(run_parameters)
+    spreadsheet_df = get_spreadsheet_df(run_parameters)
     spreadsheet_mat = spreadsheet_df.as_matrix()
-    spreadsheet_mat = get_quantile_norm(spreadsheet_mat)
+    spreadsheet_mat = get_quantile_norm_matrix(spreadsheet_mat)
 
     find_and_save_nmf_clusters(spreadsheet_mat, run_parameters)
 
-    linkage_matrix, indicator_matrix = initialization(spreadsheet_mat)
+    linkage_matrix = np.zeros((spreadsheet_mat.shape[1], spreadsheet_mat.shape[1]))
+    indicator_matrix = linkage_matrix.copy()
     consensus_matrix = form_consensus_matrix(run_parameters, linkage_matrix, indicator_matrix)
     labels = kmeans_cluster_consensus_matrix(consensus_matrix, int(run_parameters['k']))
 
@@ -607,32 +581,33 @@ def run_net_nmf(run_parameters):
     Args:
         run_parameters: parameter set dictionary.
     """
-    spreadsheet_df = get_spreadsheet(run_parameters)
-    network_df = get_network(run_parameters['network_file_name'])
+    spreadsheet_df = get_spreadsheet_df(run_parameters)
+    network_df = get_network_df(run_parameters['network_file_name'])
 
     node_1_names, node_2_names = extract_network_node_names(network_df)
     unique_gene_names = find_unique_node_names(node_1_names, node_2_names)
-    genes_lookup_table = create_node_names_dictionary(unique_gene_names)
+    genes_lookup_table = create_node_names_dict(unique_gene_names)
 
     network_df = map_node_names_to_index(network_df, genes_lookup_table, 'node_1')
     network_df = map_node_names_to_index(network_df, genes_lookup_table, 'node_2')
 
     network_df = symmetrize_df(network_df)
-    network_mat = convert_df_to_sparse(network_df, len(unique_gene_names))
+    #network_mat = convert_df_to_sparse(network_df, len(unique_gene_names))
+    network_mat = convert_network_df_to_sparse(network_df, len(unique_gene_names), len(unique_gene_names))
 
     network_mat = normalized_matrix(network_mat)
-    lap_diag, lap_pos = form_network_laplacian(network_mat)
+    lap_diag, lap_pos = form_network_laplacian_matrix(network_mat)
 
-    spreadsheet_df = update_spreadsheet(spreadsheet_df, unique_gene_names)
+    spreadsheet_df = update_spreadsheet_df(spreadsheet_df, unique_gene_names)
     spreadsheet_mat = spreadsheet_df.as_matrix()
     sample_names = spreadsheet_df.columns
 
-    sample_smooth, iterations = smooth_spreadsheet_with_rwr(
+    sample_smooth, iterations = smooth_matrix_with_rwr(
         spreadsheet_mat, network_mat, run_parameters)
-    sample_quantile_norm = get_quantile_norm(sample_smooth)
+    sample_quantile_norm = get_quantile_norm_matrix(sample_smooth)
     h_mat = perform_net_nmf(sample_quantile_norm, lap_pos, lap_diag, run_parameters)
 
-    linkage_matrix, indicator_matrix = initialization(spreadsheet_mat)
+    linkage_matrix = np.zeros((spreadsheet_mat.shape[1], spreadsheet_mat.shape[1]))
     sample_perm = np.arange(0, spreadsheet_mat.shape[1])
     linkage_matrix = update_linkage_matrix(h_mat, sample_perm, linkage_matrix)
     labels = kmeans_cluster_consensus_matrix(linkage_matrix, int(run_parameters["k"]))
@@ -651,31 +626,32 @@ def run_cc_net_nmf(run_parameters):
     Args:
         run_parameters: parameter set dictionary.
     """
-    spreadsheet_df = get_spreadsheet(run_parameters)
-    network_df = get_network(run_parameters['network_file_name'])
+    spreadsheet_df = get_spreadsheet_df(run_parameters)
+    network_df = get_network_df(run_parameters['network_file_name'])
 
     node_1_names, node_2_names = extract_network_node_names(network_df)
     unique_gene_names = find_unique_node_names(node_1_names, node_2_names)
-    genes_lookup_table = create_node_names_dictionary(unique_gene_names)
+    genes_lookup_table = create_node_names_dict(unique_gene_names)
 
     network_df = map_node_names_to_index(network_df, genes_lookup_table, 'node_1')
     network_df = map_node_names_to_index(network_df, genes_lookup_table, 'node_2')
 
     network_df = symmetrize_df(network_df)
-    network_mat = convert_df_to_sparse(network_df, len(unique_gene_names))
+    #network_mat = convert_df_to_sparse(network_df, len(unique_gene_names))
+    network_mat = convert_network_df_to_sparse(network_df, len(unique_gene_names), len(unique_gene_names))
 
     network_mat = normalized_matrix(network_mat)
-    lap_diag, lap_pos = form_network_laplacian(network_mat)
+    lap_diag, lap_pos = form_network_laplacian_matrix(network_mat)
 
-    spreadsheet_df = update_spreadsheet(spreadsheet_df, unique_gene_names)
+    spreadsheet_df = update_spreadsheet_df(spreadsheet_df, unique_gene_names)
     spreadsheet_mat = spreadsheet_df.as_matrix()
     sample_names = spreadsheet_df.columns
 
     find_and_save_net_nmf_clusters(network_mat, spreadsheet_mat, lap_diag, lap_pos, run_parameters)
 
-    linkage_matrix, indicator_matrix = initialization(spreadsheet_mat)
-    consensus_matrix = form_consensus_matrix(
-        run_parameters, linkage_matrix, indicator_matrix)
+    linkage_matrix = np.zeros((spreadsheet_mat.shape[1], spreadsheet_mat.shape[1]))
+    indicator_matrix = linkage_matrix.copy()
+    consensus_matrix = form_consensus_matrix(run_parameters, linkage_matrix, indicator_matrix)
     labels = kmeans_cluster_consensus_matrix(consensus_matrix, int(run_parameters['k']))
 
     save_consensus_cluster_result(consensus_matrix, sample_names, labels, run_parameters)
@@ -696,16 +672,16 @@ def find_and_save_net_nmf_clusters(network_mat, spreadsheet_mat, lap_dag, lap_va
         run_parameters: dictionay of run-time parameters.
     """
     for sample in range(0, int(run_parameters["number_of_bootstraps"])):
-        sample_random, sample_permutation = pick_a_sample(
+        sample_random, sample_permutation = sample_a_matrix(
             spreadsheet_mat, np.float64(run_parameters["percent_sample"]))
         sample_smooth, iterations = \
-        smooth_spreadsheet_with_rwr(sample_random, network_mat, run_parameters)
+        smooth_matrix_with_rwr(sample_random, network_mat, run_parameters)
 
         if int(run_parameters['verbose']) != 0:
             print("{} of {}: iterations = {}".format(
                 sample + 1, run_parameters["number_of_bootstraps"], iterations))
 
-        sample_quantile_norm = get_quantile_norm(sample_smooth)
+        sample_quantile_norm = get_quantile_norm_matrix(sample_smooth)
         h_mat = perform_net_nmf(sample_quantile_norm, lap_val, lap_dag, run_parameters)
 
         save_temporary_cluster(h_mat, sample_permutation, run_parameters, sample)
@@ -721,7 +697,7 @@ def find_and_save_nmf_clusters(spreadsheet_mat, run_parameters):
         run_parameters: dictionay of run-time parameters.
     """
     for sample in range(0, int(run_parameters["number_of_bootstraps"])):
-        sample_random, sample_permutation = pick_a_sample(
+        sample_random, sample_permutation = sample_a_matrix(
             spreadsheet_mat, np.float64(run_parameters["percent_sample"]))
 
         h_mat = nmf(sample_random, run_parameters)
@@ -830,7 +806,7 @@ def normalized_matrix(network_mat):
 
     return network_mat
 
-def form_network_laplacian(network_mat):
+def form_network_laplacian_matrix(network_mat):
     """ Laplacian matrix components for use in network based stratification.
 
     Args:
@@ -852,7 +828,7 @@ def form_network_laplacian(network_mat):
 
     return diagonal_laplacian, laplacian
 
-def pick_a_sample(spreadsheet_mat, percent_sample):
+def sample_a_matrix(spreadsheet_mat, percent_sample):
     """ percent_sample x percent_sample random sample, from spreadsheet_mat.
 
     Args:
@@ -880,7 +856,7 @@ def pick_a_sample(spreadsheet_mat, percent_sample):
 
     return sample_random, sample_permutation
 
-def smooth_spreadsheet_with_rwr(restart, network_sparse, run_parameters):
+def smooth_matrix_with_rwr(restart, network_sparse, run_parameters):
     """ simulate a random walk with restart. iterate: (R_n+1 = a*N*R_n + (1-a)*R_n).
 
     Args:
@@ -906,7 +882,7 @@ def smooth_spreadsheet_with_rwr(restart, network_sparse, run_parameters):
 
     return smooth_1, step
 
-def get_quantile_norm(sample):
+def get_quantile_norm_matrix(sample):
     """ normalizes an array using quantile normalization (ranking).
 
     Args:
@@ -924,7 +900,7 @@ def get_quantile_norm(sample):
 
     return sample_quantile_norm
 
-def get_h(w_matrix, x_matrix):
+def update_coordinates(w_matrix, x_matrix):
     """ nonnegative right factor matrix for perform_net_nmf function s.t. X ~ W.H.
 
     Args:
@@ -1012,7 +988,7 @@ def perform_net_nmf(x_matrix, lap_val, lap_dag, run_parameters):
                               + lmbda * lap_dag.dot(w_matrix), epsilon)
         w_matrix = w_matrix * (numerator / denomerator)
         w_matrix = maximum(w_matrix / maximum(sum(w_matrix), epsilon), epsilon)
-        h_matrix = get_h(w_matrix, x_matrix)
+        h_matrix = update_coordinates(w_matrix, x_matrix)
 
     return h_matrix
 
@@ -1051,25 +1027,9 @@ def nmf(x_matrix, run_parameters):
         denomerator = maximum(np.dot(w_matrix, np.dot(h_matrix, h_matrix.T)), epsilon)
         w_matrix = w_matrix * (numerator / denomerator)
         w_matrix = maximum(w_matrix / maximum(sum(w_matrix), epsilon), epsilon)
-        h_matrix = get_h(w_matrix, x_matrix)
+        h_matrix = update_coordinates(w_matrix, x_matrix)
 
     return h_matrix
-
-def initialization(spreadsheet_mat):
-    ''' Initialize connectivity and indicator matrices size of spreadsheet columns.
-
-    Args:
-         spreadsheet_mat: user data input genes-rows, sample_names-columns.
-
-    Returns:
-        linkage_matrix: samples x samples matrix of zeros.
-        indicator_matrix: samples x samples matrix of zeros.
-    '''
-    sp_size = spreadsheet_mat.shape[1]
-    linkage_matrix = np.zeros((sp_size, sp_size))
-    indicator_matrix = np.zeros((sp_size, sp_size))
-
-    return  linkage_matrix, indicator_matrix
 
 def update_linkage_matrix(encode_mat, sample_perm, linkage_matrix):
     ''' update the connectivity matrix by summing the un-permuted linkages.
