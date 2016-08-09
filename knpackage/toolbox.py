@@ -701,7 +701,7 @@ def perform_net_nmf(x_matrix, lap_val, lap_dag, run_parameters):
     Returns:
         h_matrix: nonnegative right factor (H) matrix.
     """
-    k = float(run_parameters["k"])
+    k = int(run_parameters["k"])
     lmbda = float(run_parameters["lmbda"])
     epsilon = 1e-15
     w_matrix = np.random.rand(x_matrix.shape[0], k)
@@ -740,7 +740,7 @@ def perform_nmf(x_matrix, run_parameters):
     Returns:
         h_matrix: nonnegative right factor matrix (H).
     """
-    k = float(run_parameters["k"])
+    k = int(run_parameters["k"])
     obj_fcn_chk_freq = int(run_parameters["obj_fcn_chk_freq"])
     h_clust_eq_limit = float(run_parameters["h_clust_eq_limit"])
     epsilon = 1e-15
