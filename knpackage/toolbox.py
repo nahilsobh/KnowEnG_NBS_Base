@@ -19,6 +19,7 @@ from sklearn.preprocessing import normalize
 from sklearn.cluster import KMeans
 
 import matplotlib.pyplot as plt
+import yaml
 
 def get_run_directory_and_file(args):
     """ Read system input arguments (argv) to get the run directory name.
@@ -48,12 +49,15 @@ def get_run_parameters(run_directory, run_file):
         run_parameters: python dictionary of name - value parameters.
     """
     run_file_name = os.path.join(run_directory, run_file)
-    par_set_df = pd.read_csv(run_file_name, sep='\t', header=None, index_col=0)
-    run_parameters = par_set_df.to_dict()[1]
+    with open(run_file_name, 'r') as file_handle:
+        run_parameters = yaml.load(file_handle)
+    #par_set_df = pd.read_csv(run_file_name, sep='\t', header=None, index_col=0)
+    #run_parameters = par_set_df.to_dict()[1]
     run_parameters["run_directory"] = run_directory
     run_parameters["run_file"] = run_file
 
     return run_parameters
+
 
 def get_spreadsheet_df(run_parameters):
     """ get the spreadsheet file name from the run_parameters dictionary and
