@@ -653,4 +653,19 @@ def create_timestamped_filename(name_base='t', stamp_units=1e6):
     time_stamped_file_name = name_base + '_' + get_timestamp(stamp_units)
     
     return time_stamped_file_name
+
+def append_run_parameters_dict(run_parameters, key_name, value_str):
+    """ add a key-value pair to the run parameters dictionary
+    
+    Args:
+        run_parameters: dictionary to append
+        key_name: key name to add or overwrite
+        value_str: value to insert in run_parameters[key_name]
+        
+    Returns:
+        run_parameters: dictionary with new (or overwritten) key value pair
+    """
+    run_parameters[key_name] = value_str
+    
+    return run_parameters
     
