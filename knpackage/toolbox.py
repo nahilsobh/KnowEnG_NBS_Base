@@ -668,4 +668,18 @@ def append_run_parameters_dict(run_parameters, key_name, value_str):
     run_parameters[key_name] = value_str
     
     return run_parameters
-    
+
+def create_dir(dir_name, timestamp=None):
+    """
+    run_file_name = os.path.join(run_directory, run_file)
+    with open(run_file_name, 'r') as file_handle:
+        run_parameters = yaml.load(file_handle)
+    run_parameters["run_directory"] = run_directory
+    """
+    if timestamp is None:
+        timestamp = get_timestamp()
+
+    new_dir_name = os.path.join(dir_name, 'tmp' + timestamp)
+    os.mkdir(new_dir_name)
+
+    return new_dir_name
