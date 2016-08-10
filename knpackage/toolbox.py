@@ -7,14 +7,13 @@ Created on Tue Jun 28 14:39:35 2016
 """
 import os
 import argparse
+import time
 import numpy as np
 import numpy.linalg as LA
 from numpy import maximum
 
 import pandas as pd
 import scipy.sparse as spar
-from scipy import stats
-from sklearn.preprocessing import normalize
 from sklearn.cluster import KMeans
 
 import yaml
@@ -629,3 +628,15 @@ def perform_kmeans(consensus_matrix, k=3):
     labels = cluster_handle.fit_predict(consensus_matrix)
 
     return labels
+
+def get_timestamp(stamp_units=1e6):
+    """ get a time stamp string - current time as integer string
+    Args:
+        stamp_units: inverse of time resolution 1e6 returns microseconds
+    Returns:
+        timestamp_string: 
+    """
+    timestamp_string = np.str_(int(time.time() * np.maximum(stamp_units, 1)))
+    
+    return timestamp_string
+    
