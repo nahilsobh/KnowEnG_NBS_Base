@@ -639,41 +639,41 @@ def get_timestamp(stamp_units=1e6):
         timestamp_string: a string of integer digits.
     """
     timestamp_string = np.str_(int(time.time() * np.maximum(stamp_units, 1)))
-    
+
     return timestamp_string
 
 def create_timestamped_filename(name_base='t', stamp_units=1e6):
     """ append a filename with a timestamp string.
-    
+
     Args:
         name_base: the file name - a prefix to the time stamp string.
         stamp_units: time resolution; 1e6 for microseconds, 1e3 milliseconds.
-    
+
     Returns:
         time_stamped_file_name: name_base_123456 (some long number)
     """
     time_stamped_file_name = name_base + '_' + get_timestamp(stamp_units)
-    
+
     return time_stamped_file_name
 
 def append_run_parameters_dict(run_parameters, key_name, value_str):
     """ add a key-value pair to the run parameters dictionary.
-    
+
     Args:
         run_parameters: dictionary to append.
         key_name: key name to add or overwrite.
         value_str: value to insert in run_parameters[key_name].
-        
+
     Returns:
         run_parameters: dictionary with new (or overwritten) key value pair.
     """
     run_parameters[key_name] = value_str
-    
+
     return run_parameters
 
 def create_dir(dir_path, dir_name, timestamp=None):
     """ create a "dir_name" with time stamp directory
-    
+
     Args:
         dir_name: an existing directory such as the run directory.
         timestamp: optional - if not input a microsecond stamp will be added.
@@ -690,7 +690,7 @@ def create_dir(dir_path, dir_name, timestamp=None):
 
 def remove_dir(dir_name):
     """ remove directory and all the files it contains.
-    
+
     Args:
         dir_name: name of a directory with no sub-directories.
     """
@@ -698,7 +698,7 @@ def remove_dir(dir_name):
     if len(dir_list) > 0:
         for file_name in dir_list:
             os.remove(os.path.join(dir_name, file_name))
-            
+
     os.rmdir(dir_name)
-    
+
     return
