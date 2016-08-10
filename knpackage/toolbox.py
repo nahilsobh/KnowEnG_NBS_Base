@@ -639,4 +639,18 @@ def get_timestamp(stamp_units=1e6):
     timestamp_string = np.str_(int(time.time() * np.maximum(stamp_units, 1)))
     
     return timestamp_string
+
+def create_timestamped_filename(name_base='t', stamp_units=1e6):
+    """ append a filename with a timestamp string
+    
+    Args:
+        name_base:
+        stamp_units:
+    
+    Returns:
+        time_stamped_file_name: 
+    """
+    time_stamped_file_name = name_base + '_' + get_timestamp(stamp_units)
+    
+    return time_stamped_file_name
     
